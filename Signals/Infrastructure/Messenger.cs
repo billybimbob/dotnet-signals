@@ -18,15 +18,16 @@ internal class Messenger
     private int _iteration;
 
     private ITarget? _watcher;
-    private IEffect? _effect;
-
     private LinkedList<ISource>? _versions;
     private LinkedList<ITarget>? _subscriptions;
 
     private LinkedList<ISource> Versions => _versions ??= new();
+
     private LinkedList<ITarget> Subscriptions => _subscriptions ??= new();
 
     public int Version { get; private set; }
+
+    public IEffect? Effect { get; set; }
 
     public void UpdateVersion() => Version++;
 
@@ -48,47 +49,43 @@ internal class Messenger
                 _batchDepth--;
                 return;
             }
-        }
-    }
 
-    public static bool RequiresRefresh(ITarget target)
-    {
-        if (target.Watching is null)
-        {
-            return false;
-        }
+            Exception? exception = null;
 
-        foreach (var source in target.Watching.GetSources())
-        {
-            if (source.Version != source.Current?.Version)
+            while (Effect != null)
             {
-                return true;
+                var effect = Effect;
+                Effect = null;
+
+                _iteration++;
+
+                try
+                {
+                    while (effect != null)
+                    {
+                        effect = effect.Run(this);
+                    }
+                }
+                catch (Exception e)
+                {
+                    effect.Dispose();
+
+                    // TODO: catch multiple exceptions
+
+                    if (exception is null)
+                    {
+                        exception = e;
+                    }
+                }
             }
 
-            if (!source.Refresh())
-            {
-                return true;
-            }
+            _iteration = 0;
 
-            if (source.Version != source.Current?.Version)
+            if (exception is not null)
             {
-                return true;
+                throw exception;
             }
         }
-
-        return false;
-    }
-
-    private static void ClearChanges(ITarget target)
-    {
-        // foreach (var node in target.Watching.GetTargets())
-        // {
-        //     node.Rollback = node.Source.Listener.Rollback;
-
-        //     node.Source.Listener = node;
-
-        //     node.Version = Message.Unused;
-        // }
     }
 
     public Message? AddDependency(ISource source)
@@ -98,8 +95,8 @@ internal class Messenger
             return null;
         }
 
-        if (source.Current is not Message message
-            || message.Target.Value != _watcher)
+        if (source.Listener is not Message message
+            || message.TargetNode.Value != _watcher)
         {
             message = CreateMessage(source, _watcher);
         }
@@ -111,11 +108,11 @@ internal class Messenger
 
     private Message CreateMessage(ISource source, ITarget target)
     {
-        bool shouldTrack = target.Status.HasFlag(Status.Tracking);
-
         var sourceSpot = Versions.AddFirst(source);
 
-        var targetSpot = source.Current?.Target switch
+        bool shouldTrack = target.Status.HasFlag(Status.Tracking);
+
+        var targetSpot = source.Listener?.TargetNode switch
         {
             LinkedListNode<ITarget> sourceTarget when shouldTrack =>
                 Subscriptions.AddBefore(sourceTarget, target),
@@ -134,15 +131,5 @@ internal class Messenger
         return new Pending(Revert);
 
         void Revert() => _watcher = oldWatcher;
-    }
-
-    public Pending Exchange(IEffect newEffect)
-    {
-        var oldEffect = _effect;
-        _effect = newEffect;
-
-        return new Pending(Revert);
-
-        void Revert() => _effect = oldEffect;
     }
 }

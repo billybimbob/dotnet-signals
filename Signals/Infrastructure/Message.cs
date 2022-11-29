@@ -4,9 +4,9 @@ internal sealed class Message
 {
     public const int Unused = -1;
 
-    public LinkedListNode<ISource> Source { get; }
+    public LinkedListNode<ISource> SourceNode { get; }
 
-    public LinkedListNode<ITarget> Target { get; }
+    public LinkedListNode<ITarget> TargetNode { get; }
 
     public int Version { get; private set; }
 
@@ -14,34 +14,73 @@ internal sealed class Message
 
     public Message(LinkedListNode<ISource> source, LinkedListNode<ITarget> target)
     {
-        Source = source;
-        Target = target;
-        Rollback = source.Value.Current;
+        SourceNode = source;
+        TargetNode = target;
+        Rollback = source.Value.Listener;
     }
 
-    public bool ShouldRenew(ITarget target) =>
-        Target.Value == target && Version == Unused;
-
-    public IEnumerable<ITarget> GetTargets()
+    public IEnumerable<ITarget> Targets
     {
-        for (var target = Target; target != null; target = target.Next)
+        get
         {
-            yield return target.Value;
+            for (var target = TargetNode; target != null; target = target.Next)
+            {
+                yield return target.Value;
+            }
         }
     }
 
-    public IEnumerable<ISource> GetSources()
+    public IEnumerable<ISource> Sources
     {
-        for (var source = Source; source != null; source = source.Next)
+        get
         {
-            yield return source.Value;
+            for (var source = SourceNode; source != null; source = source.Next)
+            {
+                yield return source.Value;
+            }
         }
+    }
+
+    public bool ShouldRefresh
+    {
+        get
+        {
+            var source = SourceNode.Value;
+
+            if (Version != source.Listener?.Version)
+            {
+                return true;
+            }
+
+            if (!source.Refresh())
+            {
+                return true;
+            }
+
+            if (Version != source.Listener?.Version)
+            {
+                return true;
+            }
+            
+            return false;
+        }
+    }
+
+    public void Backup()
+    {
+        if (SourceNode.Value.Listener is Message rollback);
+        {
+            Rollback = rollback;
+        }
+
+        SourceNode.Value.Listener = this; // TODO
+        Version = Unused;
     }
 
     public void RenewDependency()
     {
-        Source.Value.Track(this);
-        Target.Value.Watch(this);
+        SourceNode.Value.Track(this);
+        TargetNode.Value.Watch(this);
         Version = 0;
 
         // if (Source.Value == Source.List?.First?.Value)
@@ -56,5 +95,5 @@ internal sealed class Message
         // sourceList.AddAfter(sourceSpot, targetSpot);
     }
 
-    public void UpdateVersion() => Version = Source.Value.Version;
+    public void UpdateVersion() => Version = SourceNode.Value.Version;
 }

@@ -1,33 +1,69 @@
+using System;
+
 namespace Signals.Infrastructure;
 
 internal sealed class DefaultEffect : ITarget, IEffect
 {
-    private readonly Messenger _messenger;
     private readonly Action _compute;
 
-    public IEffect? Next { get; private set; }
-
-    Status ITarget.Status => _status;
-
-    Message? ITarget.Watching => _watching;
-
-    private Message? _watching;
     private Status _status;
+    private Message? _watching;
+    private IEffect? _next;
 
-    public DefaultEffect(Messenger messenger, Action compute)
+    public DefaultEffect(Action compute)
     {
-        _messenger = messenger;
         _compute = compute;
     }
 
-    void IEffect.Run()
+    Status ITarget.Status => _status;
+ 
+    Message? ITarget.Watching => _watching;
+
+    void ITarget.Notify(Messenger messenger)
     {
-        void Stop()
+        if (!_status.HasFlag(Status.Notified))
         {
+            _status |= Status.Notified;
+            _next = messenger.Effect;
+            messenger.Effect = this;
         }
     }
 
-    void IEffect.Cleanup()
+    IEffect IEffect.Run(Messenger messenger)
+    {
+        if (_status.HasFlag(Status.Running))
+        {
+            throw new InvalidOperationException("Cycle detected");
+        }
+
+        _status |= Status.Running;
+        _status &= ~Status.Disposed;
+
+        Backup();
+
+        using var batch = messenger.StartBatch();
+        using var swap = messenger.Exchange(this);
+
+        _compute.Invoke();
+        _status &= ~Status.Running;
+
+        return _next;
+    }
+
+    private void Backup()
+    {
+        if (_watching is null)
+        {
+            return;
+        }
+
+        foreach (var source in _watching.Sources)
+        {
+            source.Backup();
+        }
+    }
+
+    void IDisposable.Dispose()
     {
         _status |= Status.Disposed;
 
@@ -41,9 +77,9 @@ internal sealed class DefaultEffect : ITarget, IEffect
             return;
         }
 
-        foreach (var source in _watching.GetSources())
+        foreach (var source in _watching.Sources)
         {
-            if (source.Current is Message message)
+            if (source.Listener is Message message)
             {
                 source.Untrack(message);
             }

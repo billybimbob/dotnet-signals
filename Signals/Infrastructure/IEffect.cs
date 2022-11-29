@@ -1,10 +1,8 @@
+using System;
+
 namespace Signals.Infrastructure;
 
-internal interface IEffect : ITarget
+internal interface IEffect : ITarget, IDisposable
 {
-    IEffect? Next { get; }
-
-    void Run();
-
-    void Cleanup();
+    IEffect? Run(Messenger messenger);
 }

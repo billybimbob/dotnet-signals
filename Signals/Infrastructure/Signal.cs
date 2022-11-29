@@ -4,8 +4,8 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
-    private Message? _current;
     private Message? _listener;
+    private Message? _tracking;
 
     internal Signal(Messenger messenger, T value)
     {
@@ -22,9 +22,8 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
     {
         get
         {
-            _messenger
-                .AddDependency(this)
-                ?.UpdateVersion();
+            var dependency = _messenger.AddDependency(this);
+            dependency?.UpdateVersion();
 
             return Peek;
         }
@@ -42,23 +41,17 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
             using var batch = _messenger.StartBatch();
 
-            if (_listener is null)
+            if (_tracking is null)
             {
                 return;
             }
 
-            foreach (var target in _listener.GetTargets())
+            foreach (var target in _tracking.Targets)
             {
-                target.Notify();
+                target.Notify(_messenger);
             }
         }
     }
-
-    // public void Subscribe(Action<T> subscriber)
-    // {
-    // }
-
-    Message? ISource.Current => _current;
 
     Message? ISource.Listener => _listener;
 
@@ -66,7 +59,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
     void ISource.Track(Message message)
     {
-        if (_current == null || _current != message)
+        if (_listener is null || _listener != message)
         {
             ListenTo(message);
         }
@@ -76,32 +69,18 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
         }
     }
 
-    private static void Reuse(Message message)
-    {
-        if (message.Source.List is not LinkedList<ISource> sources)
-        {
-            return;
-        }
-
-        if (sources.First != message.Source)
-        {
-            sources.Remove(message.Source);
-            sources.AddFirst(message.Source);
-        }
-    }
-
     private void ListenTo(Message message)
     {
-        _current = message;
+        _listener = message;
 
-        var target = message.Target;
+        var target = message.TargetNode;
 
         if (!target.Value.Status.HasFlag(Status.Tracking))
         {
             return;
         }
 
-        if (_listener == message)
+        if (_tracking == message)
         {
             return;
         }
@@ -111,22 +90,38 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             return;
         }
 
-        if (_listener?.Target is LinkedListNode<ITarget> oldTarget)
+        if (_tracking?.TargetNode is LinkedListNode<ITarget> oldTarget)
         {
             oldTarget.List?.Remove(oldTarget);
             target.List?.AddAfter(target, oldTarget);
         }
 
-        _listener = message;
+        _tracking = message;
+    }
+
+    private static void Reuse(Message message)
+    {
+        var source = message.SourceNode;
+
+        if (source.List is not LinkedList<ISource> sourceList)
+        {
+            return;
+        }
+
+        if (sourceList.First != message.SourceNode)
+        {
+            sourceList.Remove(source);
+            sourceList.AddFirst(source);
+        }
     }
 
     void ISource.Untrack(Message message)
     {
-        var target = message.Target;
+        var target = message.TargetNode;
 
-        if (_listener == message)
+        if (_tracking == message)
         {
-            _listener = target.Next?.Value.Watching;
+            _tracking = target.Next?.Value.Watching;
         }
 
         target.List?.Remove(target);
