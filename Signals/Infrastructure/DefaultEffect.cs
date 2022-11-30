@@ -2,15 +2,17 @@ namespace Signals.Infrastructure;
 
 internal sealed class DefaultEffect : IEffect
 {
-    private readonly Action _compute;
+    private readonly Messenger _messenger;
+    private readonly Action _callback;
 
     private Status _status;
     private Message? _watching;
     private IEffect? _next;
 
-    public DefaultEffect(Action compute)
+    public DefaultEffect(Messenger messenger, Action callback)
     {
-        _compute = compute;
+        _messenger = messenger;
+        _callback = callback;
     }
 
     Status ITarget.Status => _status;
@@ -20,45 +22,59 @@ internal sealed class DefaultEffect : IEffect
     private IEnumerable<ISource> Sources
         => _watching?.Sources ?? Enumerable.Empty<ISource>();
 
-    private bool HasChanges
-        => Sources.Any(s => s.Listener?.ShouldRefresh ?? false);
-
     void ITarget.Watch(Message message)
     {
-        if (_watching == message)
+        if (message == _watching)
         {
             return;
         }
 
-        if (_watching is not null)
+        if (!message.IsUnused)
         {
-            var oldTarget = _watching.TargetNode;
-            var newTarget = message.TargetNode;
+            return;
+        }
 
-            // keep eye on null list
+        if (message.TargetLink.IsFirst)
+        {
+            return;
+        }
 
-            newTarget.List!.Remove(newTarget);
-            oldTarget.List!.AddBefore(oldTarget, newTarget);
+        if (message.TargetLink is var target
+            && _watching?.TargetLink is Link<ITarget> oldTarget
+            && target != oldTarget)
+        {
+            target.Pop();
+            _ = oldTarget.SpliceBefore();
+
+            oldTarget.Prepend(target);
         }
 
         _watching = message;
     }
 
-    void ITarget.Notify(Messenger messenger)
+    void ITarget.Notify()
     {
         if (!_status.HasFlag(Status.Notified))
         {
             _status |= Status.Notified;
-            _next = messenger.Effect;
-            messenger.Effect = this;
+            _next = _messenger.Effect;
+            _messenger.Effect = this;
         }
     }
 
-    IEffect? IEffect.Run(Messenger messenger)
+    public IEffect? Run()
     {
         _status &= ~Status.Notified;
 
-        if (!HasChanges)
+        bool hasChanges = Sources
+            .Any(s => s.Listener?.ShouldRefresh ?? false);
+
+        if (!hasChanges)
+        {
+            return _next;
+        }
+
+        if (_status.HasFlag(Status.Disposed))
         {
             return _next;
         }
@@ -68,18 +84,30 @@ internal sealed class DefaultEffect : IEffect
             throw new InvalidOperationException("Cycle detected");
         }
 
-        _status |= Status.Running;
         _status &= ~Status.Disposed;
 
         Backup();
 
-        using var batch = messenger.ApplyEffects();
-        using var swap = messenger.Exchange(this);
+        using var effects = _messenger.ApplyEffects();
+        using var swap = _messenger.Exchange(this);
 
-        _compute.Invoke();
-        _status &= ~Status.Running;
+        _status |= Status.Running;
 
-        Prune();
+        try
+        {
+            _callback.Invoke();
+        }
+        finally
+        {
+            Prune();
+
+            _status &= ~Status.Running;
+
+            if (_status.HasFlag(Status.Disposed))
+            {
+                Dispose();
+            }
+        }
 
         return _next;
     }
@@ -96,50 +124,49 @@ internal sealed class DefaultEffect : IEffect
     {
         Message? watching = null;
 
-        // use while loop since source is modified during iter
+        var source = _watching?.SourceLink;
 
-        var source = _watching?.SourceNode;
+        // use while loop since source is modified during iter
 
         while (source is not null)
         {
             var next = source.Next;
-
-            if (source.Value.Listener is not Message listener)
-            {
-                throw new InvalidOperationException("Source is missing listener");
-            }
-
-            var sourceList = source.List;
-            sourceList?.Remove(source);
-
-            if (listener.IsUnused)
-            {
-                source.Value.Untrack(listener);
-            }
-            else
-            {
-                if (watching is { SourceNode: var root })
-                {
-                    root.List!.AddBefore(root, source);
-                }
-                else
-                {
-                    // keep eye on
-                    sourceList?.AddFirst(source);
-                }
-
-                watching = listener;
-            }
-
-            // TODO: rollback
-
+            watching = Cleanup(source, watching);
             source = next;
         }
 
         _watching = watching;
     }
 
-    void IDisposable.Dispose()
+    private static Message? Cleanup(Link<ISource> source, Message? root)
+    {
+        if (source.Value.Listener is not Message listener)
+        {
+            throw new InvalidOperationException("Source is missing listener");
+        }
+
+        source.Pop();
+
+        if (listener.IsUnused)
+        {
+            source.Value.Untrack(listener);
+        }
+        else
+        {
+            if (root is { SourceLink: var rootSource })
+            {
+                rootSource.Prepend(source);
+            }
+
+            root = listener;
+        }
+
+        // TODO: rollback
+
+        return root;
+    }
+
+    public void Dispose()
     {
         _status |= Status.Disposed;
 
@@ -155,5 +182,8 @@ internal sealed class DefaultEffect : IEffect
                 source.Untrack(listener);
             }
         }
+
+        _watching = null;
+        _next = null;
     }
 }

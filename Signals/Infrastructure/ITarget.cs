@@ -8,5 +8,5 @@ internal interface ITarget
 
     void Watch(Message message);
 
-    void Notify(Messenger messenger);
+    void Notify();
 }

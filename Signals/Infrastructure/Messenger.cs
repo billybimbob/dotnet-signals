@@ -4,14 +4,7 @@ internal sealed class Messenger
 {
     private int _batchDepth;
     private int _iteration;
-
     private ITarget? _watcher;
-    private LinkedList<ISource>? _versions;
-    private LinkedList<ITarget>? _subscriptions;
-
-    private LinkedList<ISource> Versions => _versions ??= new();
-
-    private LinkedList<ITarget> Subscriptions => _subscriptions ??= new();
 
     public int Version { get; private set; }
 
@@ -51,7 +44,7 @@ internal sealed class Messenger
                 {
                     while (effect is not null)
                     {
-                        effect = effect.Run(this);
+                        effect = effect.Run();
                     }
                 }
                 catch (Exception e)
@@ -81,31 +74,14 @@ internal sealed class Messenger
         }
 
         if (source.Listener is not Message dependency
-            || dependency.TargetNode.Value != _watcher)
+            || dependency.TargetLink.Value != _watcher)
         {
-            dependency = CreateMessage(source, _watcher);
+            dependency = new Message(source, _watcher);
         }
 
         dependency.Refresh();
 
         return dependency;
-    }
-
-    private Message CreateMessage(ISource source, ITarget target)
-    {
-        var sourceSpot = Versions.AddFirst(source);
-
-        bool shouldTrack = target.Status.HasFlag(Status.Tracking);
-
-        var targetSpot = source.Listener?.TargetNode switch
-        {
-            LinkedListNode<ITarget> sourceTarget when shouldTrack =>
-                Subscriptions.AddBefore(sourceTarget, target),
-
-            _ => new LinkedListNode<ITarget>(target)
-        };
-
-        return new Message(sourceSpot, targetSpot);
     }
 
     public Pending Exchange(ITarget newWatcher)

@@ -39,7 +39,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
             _messenger.UpdateVersion();
 
-            using var batch = _messenger.ApplyEffects();
+            using var effects = _messenger.ApplyEffects();
 
             if (_tracking is null)
             {
@@ -48,7 +48,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
             foreach (var target in _tracking.Targets)
             {
-                target.Notify(_messenger);
+                target.Notify();
             }
         }
     }
@@ -59,71 +59,49 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
     void ISource.Track(Message message)
     {
-        if (_listener is null || _listener != message)
+        if (_listener is not null && _listener.TargetLink == message.TargetLink)
         {
-            ListenTo(message);
+            return;
         }
-        else if (message.IsUnused)
-        {
-            Reuse(message);
-        }
-    }
 
-    private void ListenTo(Message message)
-    {
         _listener = message;
 
-        var target = message.TargetNode;
+        var target = message.TargetLink;
 
         if (!target.Value.Status.HasFlag(Status.Tracking))
         {
             return;
         }
 
-        if (_tracking == message)
+        if (message == _tracking)
         {
             return;
         }
 
-        if (target.Previous is not null)
+        if (!target.IsFirst)
         {
             return;
         }
 
-        if (_tracking?.TargetNode is LinkedListNode<ITarget> oldTarget)
+        if (_tracking?.TargetLink is Link<ITarget> oldTarget
+            && oldTarget != target)
         {
-            oldTarget.List?.Remove(oldTarget);
-            target.List?.AddAfter(target, oldTarget);
+            _ = target.SpliceAfter();
+            oldTarget.Prepend(target);
         }
 
         _tracking = message;
     }
 
-    private static void Reuse(Message message)
-    {
-        var source = message.SourceNode;
-
-        if (source.List is not LinkedList<ISource> sourceList)
-        {
-            return;
-        }
-
-        if (sourceList.First != message.SourceNode)
-        {
-            sourceList.Remove(source);
-            sourceList.AddFirst(source);
-        }
-    }
-
     void ISource.Untrack(Message message)
     {
-        var target = message.TargetNode;
+        var target = message.TargetLink;
 
         if (_tracking == message)
         {
             _tracking = target.Next?.Value.Watching;
         }
 
-        target.List?.Remove(target);
+        target.Pop();
     }
 }

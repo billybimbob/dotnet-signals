@@ -6,16 +6,33 @@ internal sealed class Message
 
     private int _version;
 
-    public Message(LinkedListNode<ISource> source, LinkedListNode<ITarget> target)
+    public Message(Link<ISource> source, Link<ITarget> target)
     {
-        SourceNode = source;
-        TargetNode = target;
+        SourceLink = source;
+        TargetLink = target;
         Rollback = source.Value.Listener;
     }
 
-    public LinkedListNode<ISource> SourceNode { get; }
+    public Message(ISource source, ITarget target)
+        : this(new Link<ISource>(source), new Link<ITarget>(target))
+    {
+        if (source.Listener?.SourceLink is Link<ISource> nextSource)
+        {
+            _ = nextSource.SpliceBefore();
+            nextSource.Prepend(SourceLink);
+        }
 
-    public LinkedListNode<ITarget> TargetNode { get; }
+        if (source.Listener?.TargetLink is Link<ITarget> nextTarget
+            && nextTarget.Value.Status.HasFlag(Status.Tracking))
+        {
+            _ = nextTarget.SpliceBefore();
+            nextTarget.Prepend(TargetLink);
+        }
+    }
+
+    public Link<ISource> SourceLink { get; }
+
+    public Link<ITarget> TargetLink { get; }
 
     public bool IsUnused => _version == Unused;
 
@@ -25,7 +42,7 @@ internal sealed class Message
     {
         get
         {
-            for (var target = TargetNode; target is not null; target = target.Next)
+            for (var target = TargetLink; target is not null; target = target.Next)
             {
                 yield return target.Value;
             }
@@ -36,7 +53,7 @@ internal sealed class Message
     {
         get
         {
-            for (var source = SourceNode; source is not null; source = source.Next)
+            for (var source = SourceLink; source is not null; source = source.Next)
             {
                 yield return source.Value;
             }
@@ -47,7 +64,7 @@ internal sealed class Message
     {
         get
         {
-            var source = SourceNode.Value;
+            var source = SourceLink.Value;
 
             if (_version != source.Listener?._version)
             {
@@ -70,21 +87,21 @@ internal sealed class Message
 
     public void Backup()
     {
-        if (SourceNode.Value.Listener is Message rollback)
+        if (SourceLink.Value.Listener is Message rollback)
         {
             Rollback = rollback;
         }
 
-        SourceNode.Value.Listener = this; // TODO
+        SourceLink.Value.Listener = this; // TODO
         _version = Unused;
     }
 
     public void Refresh()
     {
-        SourceNode.Value.Track(this);
-        TargetNode.Value.Watch(this);
+        SourceLink.Value.Track(this);
+        TargetLink.Value.Watch(this);
         _version = 0;
     }
 
-    public void SyncVersion() => _version = SourceNode.Value.Version;
+    public void SyncVersion() => _version = SourceLink.Value.Version;
 }
