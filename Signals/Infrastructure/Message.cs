@@ -2,15 +2,9 @@ namespace Signals.Infrastructure;
 
 internal sealed class Message
 {
-    public const int Unused = -1;
+    private const int Unused = -1;
 
-    public LinkedListNode<ISource> SourceNode { get; }
-
-    public LinkedListNode<ITarget> TargetNode { get; }
-
-    public int Version { get; private set; }
-
-    public Message? Rollback { get; private set; }
+    private int _version;
 
     public Message(LinkedListNode<ISource> source, LinkedListNode<ITarget> target)
     {
@@ -19,11 +13,19 @@ internal sealed class Message
         Rollback = source.Value.Listener;
     }
 
+    public LinkedListNode<ISource> SourceNode { get; }
+
+    public LinkedListNode<ITarget> TargetNode { get; }
+
+    public bool IsUnused => _version == Unused;
+
+    public Message? Rollback { get; private set; }
+
     public IEnumerable<ITarget> Targets
     {
         get
         {
-            for (var target = TargetNode; target != null; target = target.Next)
+            for (var target = TargetNode; target is not null; target = target.Next)
             {
                 yield return target.Value;
             }
@@ -34,7 +36,7 @@ internal sealed class Message
     {
         get
         {
-            for (var source = SourceNode; source != null; source = source.Next)
+            for (var source = SourceNode; source is not null; source = source.Next)
             {
                 yield return source.Value;
             }
@@ -47,7 +49,7 @@ internal sealed class Message
         {
             var source = SourceNode.Value;
 
-            if (Version != source.Listener?.Version)
+            if (_version != source.Listener?._version)
             {
                 return true;
             }
@@ -57,43 +59,32 @@ internal sealed class Message
                 return true;
             }
 
-            if (Version != source.Listener?.Version)
+            if (_version != source.Listener?._version)
             {
                 return true;
             }
-            
+
             return false;
         }
     }
 
     public void Backup()
     {
-        if (SourceNode.Value.Listener is Message rollback);
+        if (SourceNode.Value.Listener is Message rollback)
         {
             Rollback = rollback;
         }
 
         SourceNode.Value.Listener = this; // TODO
-        Version = Unused;
+        _version = Unused;
     }
 
-    public void RenewDependency()
+    public void Refresh()
     {
         SourceNode.Value.Track(this);
         TargetNode.Value.Watch(this);
-        Version = 0;
-
-        // if (Source.Value == Source.List?.First?.Value)
-        // {
-        //     return;
-        // }
-
-        // Source.List?.Remove(Source);
-        // sourceList.AddFirst(sourceSpot);
-
-        // sourceList.Remove(targetSpot);
-        // sourceList.AddAfter(sourceSpot, targetSpot);
+        _version = 0;
     }
 
-    public void UpdateVersion() => Version = SourceNode.Value.Version;
+    public void SyncVersion() => _version = SourceNode.Value.Version;
 }

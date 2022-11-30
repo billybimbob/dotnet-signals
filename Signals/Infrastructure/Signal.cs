@@ -23,7 +23,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
         get
         {
             var dependency = _messenger.AddDependency(this);
-            dependency?.UpdateVersion();
+            dependency?.SyncVersion();
 
             return Peek;
         }
@@ -39,7 +39,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
             _messenger.UpdateVersion();
 
-            using var batch = _messenger.StartBatch();
+            using var batch = _messenger.ApplyEffects();
 
             if (_tracking is null)
             {
@@ -63,7 +63,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
         {
             ListenTo(message);
         }
-        else if (message.Version == Message.Unused)
+        else if (message.IsUnused)
         {
             Reuse(message);
         }

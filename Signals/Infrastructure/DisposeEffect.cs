@@ -1,6 +1,6 @@
 namespace Signals.Infrastructure;
 
-internal sealed class DisposingEffect : ITarget, IEffect
+internal sealed class DisposingEffect : IEffect
 {
     private readonly Func<Action> _compute;
     private Action? _cleanup;

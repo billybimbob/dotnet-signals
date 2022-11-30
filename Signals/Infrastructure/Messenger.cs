@@ -1,18 +1,6 @@
 namespace Signals.Infrastructure;
 
-internal readonly ref struct Pending
-{
-    private readonly Action? _changes;
-
-    public Pending(Action? changes)
-    {
-        _changes = changes;
-    }
-
-    public void Dispose() => _changes?.Invoke();
-}
-
-internal class Messenger
+internal sealed class Messenger
 {
     private int _batchDepth;
     private int _iteration;
@@ -31,7 +19,7 @@ internal class Messenger
 
     public void UpdateVersion() => Version++;
 
-    public Pending StartBatch()
+    public Pending ApplyEffects()
     {
         _batchDepth++;
 
@@ -52,7 +40,7 @@ internal class Messenger
 
             Exception? exception = null;
 
-            while (Effect != null)
+            while (Effect is not null)
             {
                 var effect = Effect;
                 Effect = null;
@@ -61,21 +49,18 @@ internal class Messenger
 
                 try
                 {
-                    while (effect != null)
+                    while (effect is not null)
                     {
                         effect = effect.Run(this);
                     }
                 }
                 catch (Exception e)
                 {
-                    effect.Dispose();
-
                     // TODO: catch multiple exceptions
 
-                    if (exception is null)
-                    {
-                        exception = e;
-                    }
+                    effect?.Dispose();
+
+                    exception ??= e;
                 }
             }
 
@@ -95,15 +80,15 @@ internal class Messenger
             return null;
         }
 
-        if (source.Listener is not Message message
-            || message.TargetNode.Value != _watcher)
+        if (source.Listener is not Message dependency
+            || dependency.TargetNode.Value != _watcher)
         {
-            message = CreateMessage(source, _watcher);
+            dependency = CreateMessage(source, _watcher);
         }
 
-        message.RenewDependency();
+        dependency.Refresh();
 
-        return message;
+        return dependency;
     }
 
     private Message CreateMessage(ISource source, ITarget target)
@@ -128,8 +113,6 @@ internal class Messenger
         var oldWatcher = _watcher;
         _watcher = newWatcher;
 
-        return new Pending(Revert);
-
-        void Revert() => _watcher = oldWatcher;
+        return new Pending(() => _watcher = oldWatcher);
     }
 }
