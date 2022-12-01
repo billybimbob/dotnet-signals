@@ -2,14 +2,14 @@ namespace Signals.Infrastructure;
 
 internal sealed class SignalCleanup<T> : IDisposable
 {
-    private readonly ICollection<IObserver<T>> _observers;
+    private readonly Action<IObserver<T>> _cleanup;
     private readonly IObserver<T> _observer;
 
-    public SignalCleanup(ICollection<IObserver<T>> observers, IObserver<T> observer)
+    public SignalCleanup(Action<IObserver<T>> cleanup, IObserver<T> observer)
     {
-        _observers = observers;
+        _cleanup = cleanup;
         _observer = observer;
     }
 
-    void IDisposable.Dispose() => _observers.Remove(_observer);
+    void IDisposable.Dispose() => _cleanup.Invoke(_observer);
 }

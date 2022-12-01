@@ -1,20 +1,24 @@
 namespace Signals.Infrastructure;
 
-internal sealed class DisposingEffect : IEffect
+internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 {
+    private readonly ISignal<T> _source;
     private readonly Messenger _messenger;
-    private readonly Func<Action> _callback;
-    private Action? _cleanup;
+    private readonly IReadOnlyCollection<IObserver<T>> _observers;
 
     private Status _status;
     private Message? _watching;
     private IEffect? _next;
 
-    public DisposingEffect(Messenger messenger, Func<Action> callback)
+    public SubscribeEffect(
+        ISignal<T> source,
+        Messenger messenger,
+        IReadOnlyCollection<IObserver<T>> observers)
     {
         _status = Status.Tracking;
         _messenger = messenger;
-        _callback = callback;
+        _source = source;
+        _observers = observers;
     }
 
     Status ITarget.Status => _status;
@@ -83,23 +87,40 @@ internal sealed class DisposingEffect : IEffect
             throw new InvalidOperationException("Cycle detected");
         }
 
-        _status |= Status.Running;
         _status &= ~Status.Disposed;
+
+        Backup();
+
+        using var effects = _messenger.ApplyEffects();
+        using var swap = _messenger.Exchange(this);
+
+        _status |= Status.Running;
+        _status &= ~Status.Tracking;
 
         try
         {
-            ApplyCleanup();
-            Backup();
+            var value = _source.Value;
 
-            using var effects = _messenger.ApplyEffects();
-            using var swap = _messenger.Exchange(this);
+            foreach (var observer in _observers)
+            {
+                observer.OnNext(value);
+            }
+        }
+        catch (Exception e)
+        {
+            foreach (var observer in _observers)
+            {
+                observer.OnError(e);
+            }
 
-            _cleanup = _callback.Invoke();
+            Dispose();
+            throw;
         }
         finally
         {
             Prune();
 
+            _status |= Status.Tracking;
             _status &= ~Status.Running;
 
             if (_status.HasFlag(Status.Disposed))
@@ -109,29 +130,6 @@ internal sealed class DisposingEffect : IEffect
         }
 
         return _next;
-    }
-
-    private void ApplyCleanup()
-    {
-        if (_cleanup is not Action cleanup)
-        {
-            return;
-        }
-
-        _cleanup = null;
-
-        using var effects = _messenger.ApplyEffects();
-        using var swap = _messenger.Exchange(this);
-
-        try
-        {
-            cleanup.Invoke();
-        }
-        catch (Exception)
-        {
-            Dispose();
-            throw;
-        }
     }
 
     private void Backup()
@@ -201,21 +199,21 @@ internal sealed class DisposingEffect : IEffect
             return;
         }
 
-        if (_watching is not null)
-        {
-            foreach (var source in _watching.Sources)
-            {
-                if (source.Listener is Message listener)
-                {
-                    source.Untrack(listener);
-                }
-            }
-
-            _watching = null;
-        }
-
         _next = null;
 
-        ApplyCleanup();
+        if (_watching is null)
+        {
+            return;
+        }
+
+        foreach (var source in _watching.Sources)
+        {
+            if (source.Listener is Message listener)
+            {
+                source.Untrack(listener);
+            }
+        }
+
+        _watching = null;
     }
 }

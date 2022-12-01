@@ -25,7 +25,7 @@ internal sealed class Message
         }
 
         if (source.Listener?.TargetLink is Link<ITarget> nextTarget
-            && nextTarget.Value.IsTracking)
+            && nextTarget.Value.Status.HasFlag(Status.Tracking))
         {
             _ = nextTarget.SpliceBefore();
             nextTarget.Prepend(TargetLink);

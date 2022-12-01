@@ -11,16 +11,14 @@ internal sealed class DefaultEffect : IEffect
 
     public DefaultEffect(Messenger messenger, Action callback)
     {
+        _status = Status.Tracking;
         _messenger = messenger;
         _callback = callback;
     }
 
-    bool ITarget.IsTracking => true;
+    Status ITarget.Status => _status;
 
     Message? ITarget.Watching => _watching;
-
-    private IEnumerable<ISource> Sources
-        => _watching?.Sources ?? Enumerable.Empty<ISource>();
 
     void ITarget.Watch(Message message)
     {
@@ -66,10 +64,10 @@ internal sealed class DefaultEffect : IEffect
     {
         _status &= ~Status.Notified;
 
-        bool hasChanges = Sources
-            .Any(s => s.Listener?.ShouldRefresh ?? false);
+        bool? hasChanges = _watching
+            ?.Sources.Any(s => s.Listener?.ShouldRefresh ?? false);
 
-        if (!hasChanges && _watching is not null)
+        if (hasChanges is false)
         {
             return _next;
         }
@@ -114,7 +112,12 @@ internal sealed class DefaultEffect : IEffect
 
     private void Backup()
     {
-        foreach (var source in Sources)
+        if (_watching is null)
+        {
+            return;
+        }
+
+        foreach (var source in _watching.Sources)
         {
             source.Listener?.Backup();
         }
@@ -174,7 +177,14 @@ internal sealed class DefaultEffect : IEffect
             return;
         }
 
-        foreach (var source in Sources)
+        _next = null;
+
+        if (_watching is null)
+        {
+            return;
+        }
+
+        foreach (var source in _watching.Sources)
         {
             if (source.Listener is Message listener)
             {
@@ -183,6 +193,5 @@ internal sealed class DefaultEffect : IEffect
         }
 
         _watching = null;
-        _next = null;
     }
 }

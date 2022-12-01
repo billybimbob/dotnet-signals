@@ -2,7 +2,7 @@ namespace Signals.Infrastructure;
 
 internal interface ITarget
 {
-    bool IsTracking { get; }
+    Status Status { get; }
 
     Message? Watching { get; }
 

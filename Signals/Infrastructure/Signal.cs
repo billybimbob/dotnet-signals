@@ -3,22 +3,25 @@ namespace Signals.Infrastructure;
 internal sealed class Signal<T> : ISignalSource<T>, ISource
     where T : IEquatable<T>
 {
-    private readonly HashSet<IObserver<T>> _observers;
     private readonly Messenger _messenger;
+    private readonly HashSet<IObserver<T>> _observers;
+    private SubscribeEffect<T>? _subscription;
+
+    private T _value;
+    private int _version;
+
+    private Message? _listener;
     private Message? _tracking;
 
     internal Signal(Messenger messenger, T value)
     {
-        _observers = new HashSet<IObserver<T>>();
         _messenger = messenger;
-
-        Version = 0;
-        Peek = value;
+        _observers = new HashSet<IObserver<T>>();
+        _value = value;
+        _version = 0;
     }
 
-    public int Version { get; private set; }
-
-    public T Peek { get; private set; }
+    T ISignal<T>.Peek => _value;
 
     public T Value
     {
@@ -27,18 +30,17 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             var dependency = _messenger.AddDependency(this);
             dependency?.SyncVersion();
 
-            return Peek;
+            return _value;
         }
         set
         {
-            if (Peek.Equals(value))
+            if (_value.Equals(value))
             {
                 return;
             }
 
-            Peek = value;
-            Version++;
-
+            _value = value;
+            _version++;
             _messenger.UpdateVersion();
 
             using var effects = _messenger.ApplyEffects();
@@ -52,39 +54,60 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             {
                 target.Notify();
             }
-
-            foreach (var observer in _observers)
-            {
-                observer.OnNext(value);
-            }
         }
     }
 
-    public Message? Listener { get; set; }
-
     public IDisposable Subscribe(IObserver<T> observer)
     {
-        observer.OnNext(Peek);
+        _ = _observers.Add(observer);
 
-        _observers.Add(observer);
+        if (_subscription is null)
+        {
+            _subscription = new SubscribeEffect<T>(this, _messenger, _observers);
+            _subscription.Run();
+        }
+        else
+        {
+            observer.OnNext(_value);
+        }
 
-        return new SignalCleanup<T>(_observers, observer);
+        return new SignalCleanup<T>(Cleanup, observer);
+    }
+
+    private void Cleanup(IObserver<T> observer)
+    {
+        _ = _observers.Remove(observer);
+
+        if (_observers.Count is 0)
+        {
+            _subscription?.Dispose();
+        }
+    }
+
+    #region ISource impl
+
+    int ISource.Version => _version;
+
+    Message? ISource.Listener
+    {
+        get => _listener;
+        set => _listener = value;
     }
 
     bool ISource.Refresh() => true;
 
     void ISource.Track(Message message)
     {
-        if (Listener is not null && Listener.TargetLink == message.TargetLink)
+        if (_listener is not null && _listener.TargetLink == message.TargetLink)
         {
             return;
         }
 
-        Listener = message;
+        _listener = message;
 
         var target = message.TargetLink;
 
-        if (!target.Value.IsTracking)
+        if (!target.Value.Status.HasFlag(Status.Tracking))
         {
             return;
         }
@@ -120,4 +143,6 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
         target.Pop();
     }
+
+    #endregion
 }
