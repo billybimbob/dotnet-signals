@@ -44,9 +44,7 @@ internal sealed class DisposingEffect : IEffect
                 && oldTarget != target)
             {
                 _ = oldTarget.SpliceBefore();
-                target.Pop();
-
-                oldTarget.Prepend(target);
+                oldTarget.Prepend(target.Pop());
             }
 
             _watching = value;
@@ -91,7 +89,7 @@ internal sealed class DisposingEffect : IEffect
             Backup();
 
             using var effects = _messenger.ApplyEffects();
-            using var swap = _messenger.Exchange(this);
+            using var exchange = _messenger.Exchange(this);
 
             _cleanup = _callback.Invoke();
         }
@@ -138,7 +136,7 @@ internal sealed class DisposingEffect : IEffect
         _cleanup = null;
 
         using var effects = _messenger.ApplyEffects();
-        using var swap = _messenger.Exchange(this);
+        using var exchange = _messenger.Exchange(this);
 
         try
         {
@@ -189,18 +187,18 @@ internal sealed class DisposingEffect : IEffect
             throw new InvalidOperationException("Source is missing listener");
         }
 
-        source.Pop();
         listener.Restore();
 
         if (listener.IsUnused)
         {
+            _ = source.Pop();
             source.Value.Untrack(listener);
         }
         else
         {
             if (root is { SourceLink: var rootSource })
             {
-                rootSource.Prepend(source);
+                rootSource.Prepend(source.Pop());
             }
 
             root = listener;

@@ -17,7 +17,7 @@ internal sealed class Link<T>
         Value = value;
     }
 
-    public void Pop()
+    public SingleLink Pop()
     {
         if (Previous is not null)
         {
@@ -32,6 +32,8 @@ internal sealed class Link<T>
         }
 
         Next = null;
+
+        return new SingleLink(this);
     }
 
     public Link<T>? SpliceBefore()
@@ -60,16 +62,11 @@ internal sealed class Link<T>
         return head;
     }
 
-    public void Prepend(Link<T> link)
+    public void Prepend(SingleLink single)
     {
-        if (link.Previous is not null)
+        if (single.Link is not Link<T> link)
         {
-            throw new InvalidOperationException("Previous expected to be null");
-        }
-
-        if (link.Next is not null)
-        {
-            throw new InvalidOperationException("Next expected to be null");
+            return;
         }
 
         link.Previous = Previous;
@@ -83,37 +80,36 @@ internal sealed class Link<T>
         Previous = link;
     }
 
-    // public void Prepend(Link<T> link)
-    // {
-    //     if (Previous is not null)
-    //     {
-    //         Previous.Next = null;
-    //     }
+    public readonly ref struct SingleLink
+    {
+        private readonly Link<T>? _link;
 
-    //     Previous = link;
+        public Link<T>? Link
+        {
+            get
+            {
+                if (_link is null)
+                {
+                    return null;
+                }
 
-    //     if (link.Next is not null)
-    //     {
-    //         link.Next.Previous = null;
-    //     }
+                if (_link.Previous is not null)
+                {
+                    return null;
+                }
 
-    //     link.Next = this;
-    // }
+                if (_link.Next is not null)
+                {
+                    return null;
+                }
 
-    // public void Append(Link<T> link)
-    // {
-    //     if (Next is not null)
-    //     {
-    //         Next.Previous = null;
-    //     }
+                return _link;
+            }
+        }
 
-    //     Next = link;
-
-    //     if (link.Previous is not null)
-    //     {
-    //         link.Previous.Next = null;
-    //     }
-
-    //     link.Previous = this;
-    // }
+        internal SingleLink(Link<T> link)
+        {
+            _link = link;
+        }
+    }
 }

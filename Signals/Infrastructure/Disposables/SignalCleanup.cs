@@ -1,4 +1,4 @@
-namespace Signals.Infrastructure;
+namespace Signals.Infrastructure.Disposables;
 
 internal sealed class SignalCleanup<T> : IDisposable
 {

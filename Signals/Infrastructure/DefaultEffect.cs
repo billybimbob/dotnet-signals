@@ -43,9 +43,7 @@ internal sealed class DefaultEffect : IEffect
                 && oldTarget != target)
             {
                 _ = oldTarget.SpliceBefore();
-                target.Pop();
-
-                oldTarget.Prepend(target);
+                oldTarget.Prepend(target.Pop());
             }
 
             _watching = value;
@@ -86,7 +84,7 @@ internal sealed class DefaultEffect : IEffect
         Backup();
 
         using var effects = _messenger.ApplyEffects();
-        using var swap = _messenger.Exchange(this);
+        using var exchange = _messenger.Exchange(this);
 
         _status |= Status.Running;
 
@@ -165,18 +163,18 @@ internal sealed class DefaultEffect : IEffect
             throw new InvalidOperationException("Source is missing listener");
         }
 
-        source.Pop();
         listener.Restore();
 
         if (listener.IsUnused)
         {
+            _ = source.Pop();
             source.Value.Untrack(listener);
         }
         else
         {
             if (root is { SourceLink: var rootSource })
             {
-                rootSource.Prepend(source);
+                rootSource.Prepend(source.Pop());
             }
 
             root = listener;

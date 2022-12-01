@@ -1,6 +1,8 @@
+using Signals.Infrastructure.Disposables;
+
 namespace Signals.Infrastructure;
 
-internal sealed class Signal<T> : ISignalSource<T>, ISource
+internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
@@ -64,7 +66,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
         if (_subscription is null)
         {
             _subscription = new SubscribeEffect<T>(this, _messenger, _observers);
-            _subscription.Run();
+            _ = _subscription.Run();
         }
         else
         {
@@ -82,6 +84,17 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
         {
             _subscription?.Dispose();
         }
+    }
+
+    void IDisposable.Dispose()
+    {
+        _observers.Clear();
+
+        _subscription?.Dispose();
+        _subscription = null;
+
+        _listener = null;
+        _tracking = null;
     }
 
     #region ISource impl
@@ -124,8 +137,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
 
         if (_tracking is { TargetLink: var oldTarget } && oldTarget != target)
         {
-            _ = target.SpliceAfter();
-            oldTarget.Prepend(target);
+            oldTarget.Prepend(target.Pop());
         }
 
         _tracking = message;
@@ -140,7 +152,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             _tracking = target.Next?.Value.Watching;
         }
 
-        target.Pop();
+        _ = target.Pop();
     }
 
     #endregion

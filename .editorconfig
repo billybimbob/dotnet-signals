@@ -32,6 +32,8 @@ dotnet_style_prefer_conditional_expression_over_return = false:suggestion
 csharp_style_expression_bodied_local_functions = when_on_single_line
 csharp_style_expression_bodied_methods = when_on_single_line
 
+csharp_style_unused_value_expression_statement_preference = discard_variable
+
 # Require var some of the time.
 csharp_style_var_for_built_in_types = false:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
@@ -244,7 +246,7 @@ dotnet_diagnostic.IDE0051.severity = warning
 dotnet_diagnostic.IDE0055.severity = warning
 
 # IDE0058: Remove unnecessary expression
-dotnet_diagnostic.IDE0058.severity = silent
+dotnet_diagnostic.IDE0058.severity = warning
 
 # IDE0059: Unnecessary assignment to a value
 dotnet_diagnostic.IDE0059.severity = warning

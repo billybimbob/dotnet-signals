@@ -1,3 +1,5 @@
+using Signals.Infrastructure.Disposables;
+
 namespace Signals.Infrastructure;
 
 internal sealed class Messenger
@@ -12,58 +14,59 @@ internal sealed class Messenger
 
     public void UpdateVersion() => Version++;
 
-    public Pending ApplyEffects()
+    public BatchChange ApplyEffects()
     {
         _batchDepth++;
 
-        return new Pending(FlushEffects);
+        return new BatchChange(FlushEffects, _batchDepth > 1);
 
-        void FlushEffects()
+    }
+
+    private void FlushEffects()
+    {
+        if (_iteration > 100)
         {
-            if (_iteration > 100)
-            {
-                throw new InvalidOperationException("Cycle detected");
-            }
+            throw new InvalidOperationException("Cycle detected");
+        }
 
-            if (_batchDepth > 1)
-            {
-                _batchDepth--;
-                return;
-            }
-
-            Exception? exception = null;
-
-            while (Effect is not null)
-            {
-                var effect = Effect;
-                Effect = null;
-
-                _iteration++;
-
-                try
-                {
-                    while (effect is not null)
-                    {
-                        effect = effect.Run();
-                    }
-                }
-                catch (Exception e)
-                {
-                    // TODO: catch multiple exceptions
-
-                    effect?.Dispose();
-
-                    exception ??= e;
-                }
-            }
-
-            _iteration = 0;
+        if (_batchDepth > 1)
+        {
             _batchDepth--;
+            return;
+        }
 
-            if (exception is not null)
+        Exception? exception = null;
+
+        while (Effect is not null)
+        {
+            var effect = Effect;
+            Effect = null;
+
+            _iteration++;
+
+            try
             {
-                throw exception;
+                while (effect is not null)
+                {
+                    effect = effect.Run();
+                }
             }
+            catch (Exception e)
+            {
+                // TODO: catch multiple exceptions
+
+                effect?.Dispose();
+
+                exception ??= e;
+            }
+        }
+
+        _iteration = 0;
+        _batchDepth--;
+
+        if (exception is not null)
+        {
+            throw exception;
         }
     }
 
@@ -85,12 +88,12 @@ internal sealed class Messenger
         return dependency;
     }
 
-    public Pending Exchange(ITarget newWatcher)
+    public TargetExchange Exchange(ITarget newWatcher)
     {
         var oldWatcher = _watcher;
         _watcher = newWatcher;
 
-        return new Pending(Revert);
+        return new TargetExchange(Revert, oldWatcher);
 
         void Revert() => _watcher = oldWatcher;
     }

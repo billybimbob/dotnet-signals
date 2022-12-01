@@ -10,7 +10,7 @@ internal sealed class Message
     public Message(Link<ISource> source, Link<ITarget> target)
     {
         _rollback = source.Value.Listener;
-
+        _version = 0;
         SourceLink = source;
         TargetLink = target;
     }
@@ -21,14 +21,14 @@ internal sealed class Message
         if (source is { Listener.SourceLink: var nextSource })
         {
             _ = nextSource.SpliceBefore();
-            nextSource.Prepend(SourceLink);
+            nextSource.Prepend(SourceLink.Pop());
         }
 
         if (source is { Listener.TargetLink: var nextTarget }
             && nextTarget.Value.Status.HasFlag(Status.Tracking))
         {
             _ = nextTarget.SpliceBefore();
-            nextTarget.Prepend(TargetLink);
+            nextTarget.Prepend(TargetLink.Pop());
         }
     }
 
