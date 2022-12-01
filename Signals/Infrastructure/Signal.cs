@@ -3,13 +3,15 @@ namespace Signals.Infrastructure;
 internal sealed class Signal<T> : ISignalSource<T>, ISource
     where T : IEquatable<T>
 {
+    private readonly HashSet<IObserver<T>> _observers;
     private readonly Messenger _messenger;
-    private Message? _listener;
     private Message? _tracking;
 
     internal Signal(Messenger messenger, T value)
     {
+        _observers = new HashSet<IObserver<T>>();
         _messenger = messenger;
+
         Version = 0;
         Peek = value;
     }
@@ -50,25 +52,39 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             {
                 target.Notify();
             }
+
+            foreach (var observer in _observers)
+            {
+                observer.OnNext(value);
+            }
         }
     }
 
-    Message? ISource.Listener => _listener;
+    public Message? Listener { get; set; }
+
+    public IDisposable Subscribe(IObserver<T> observer)
+    {
+        observer.OnNext(Peek);
+
+        _observers.Add(observer);
+
+        return new SignalCleanup<T>(_observers, observer);
+    }
 
     bool ISource.Refresh() => true;
 
     void ISource.Track(Message message)
     {
-        if (_listener is not null && _listener.TargetLink == message.TargetLink)
+        if (Listener is not null && Listener.TargetLink == message.TargetLink)
         {
             return;
         }
 
-        _listener = message;
+        Listener = message;
 
         var target = message.TargetLink;
 
-        if (!target.Value.Status.HasFlag(Status.Tracking))
+        if (!target.Value.IsTracking)
         {
             return;
         }

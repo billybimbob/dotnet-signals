@@ -12,11 +12,12 @@ internal sealed class DisposingEffect : IEffect
 
     public DisposingEffect(Messenger messenger, Func<Action> callback)
     {
+        _status = Status.Tracking;
         _messenger = messenger;
         _callback = callback;
     }
 
-    Status ITarget.Status => _status;
+    bool ITarget.IsTracking => true;
 
     Message? ITarget.Watching => _watching;
 
@@ -70,7 +71,7 @@ internal sealed class DisposingEffect : IEffect
         bool hasChanges = Sources
             .Any(s => s.Listener?.ShouldRefresh ?? false);
 
-        if (!hasChanges)
+        if (!hasChanges && _watching is not null)
         {
             return _next;
         }
@@ -170,6 +171,7 @@ internal sealed class DisposingEffect : IEffect
         }
 
         source.Pop();
+        listener.Restore();
 
         if (listener.IsUnused)
         {
@@ -184,8 +186,6 @@ internal sealed class DisposingEffect : IEffect
 
             root = listener;
         }
-
-        // TODO: rollback
 
         return root;
     }

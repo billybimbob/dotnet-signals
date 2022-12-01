@@ -1,11 +1,19 @@
 ﻿using Signals;
 
-var signalProvider = new SignalProvider();
+var signals = new SignalProvider();
 
-var source = signalProvider.CreateSource(4);
+var source = signals.CreateSource(4);
 
-signalProvider.Watch(() => Console.WriteLine($"signal is {source.Value}"));
+signals.Watch(() => Console.WriteLine($"signal is {source.Value}"));
 
-await Task.Delay(400);
+int[] intervals = { 400, 100, 200, };
 
+foreach (int delay in intervals)
+{
+    await Task.Delay(delay);
+
+    source.Value += 1;
+}
+
+source.Value = 7;
 source.Value = 7;

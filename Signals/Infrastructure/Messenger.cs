@@ -58,6 +58,7 @@ internal sealed class Messenger
             }
 
             _iteration = 0;
+            _batchDepth--;
 
             if (exception is not null)
             {
@@ -89,6 +90,8 @@ internal sealed class Messenger
         var oldWatcher = _watcher;
         _watcher = newWatcher;
 
-        return new Pending(() => _watcher = oldWatcher);
+        return new Pending(Revert);
+
+        void Revert() => _watcher = oldWatcher;
     }
 }

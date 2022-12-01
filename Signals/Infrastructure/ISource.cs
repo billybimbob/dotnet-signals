@@ -4,7 +4,7 @@ internal interface ISource
 {
     int Version { get; }
 
-    Message? Listener { get; }
+    Message? Listener { get; set; }
 
     bool Refresh();
 

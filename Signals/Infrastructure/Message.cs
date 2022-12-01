@@ -4,13 +4,15 @@ internal sealed class Message
 {
     private const int Unused = -1;
 
+    public Message? _rollback;
     private int _version;
 
     public Message(Link<ISource> source, Link<ITarget> target)
     {
+        _rollback = source.Value.Listener;
+
         SourceLink = source;
         TargetLink = target;
-        Rollback = source.Value.Listener;
     }
 
     public Message(ISource source, ITarget target)
@@ -23,7 +25,7 @@ internal sealed class Message
         }
 
         if (source.Listener?.TargetLink is Link<ITarget> nextTarget
-            && nextTarget.Value.Status.HasFlag(Status.Tracking))
+            && nextTarget.Value.IsTracking)
         {
             _ = nextTarget.SpliceBefore();
             nextTarget.Prepend(TargetLink);
@@ -35,8 +37,6 @@ internal sealed class Message
     public Link<ITarget> TargetLink { get; }
 
     public bool IsUnused => _version == Unused;
-
-    public Message? Rollback { get; private set; }
 
     public IEnumerable<ITarget> Targets
     {
@@ -89,11 +89,21 @@ internal sealed class Message
     {
         if (SourceLink.Value.Listener is Message rollback)
         {
-            Rollback = rollback;
+            _rollback = rollback;
         }
 
-        SourceLink.Value.Listener = this; // TODO
+        SourceLink.Value.Listener = this;
         _version = Unused;
+    }
+
+    public void Restore()
+    {
+        SourceLink.Value.Listener = _rollback;
+
+        if (_rollback is not null)
+        {
+            _rollback = null;
+        }
     }
 
     public void Refresh()

@@ -15,7 +15,7 @@ internal sealed class DefaultEffect : IEffect
         _callback = callback;
     }
 
-    Status ITarget.Status => _status;
+    bool ITarget.IsTracking => true;
 
     Message? ITarget.Watching => _watching;
 
@@ -69,7 +69,7 @@ internal sealed class DefaultEffect : IEffect
         bool hasChanges = Sources
             .Any(s => s.Listener?.ShouldRefresh ?? false);
 
-        if (!hasChanges)
+        if (!hasChanges && _watching is not null)
         {
             return _next;
         }
@@ -146,6 +146,7 @@ internal sealed class DefaultEffect : IEffect
         }
 
         source.Pop();
+        listener.Restore();
 
         if (listener.IsUnused)
         {
@@ -160,8 +161,6 @@ internal sealed class DefaultEffect : IEffect
 
             root = listener;
         }
-
-        // TODO: rollback
 
         return root;
     }
