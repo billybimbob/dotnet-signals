@@ -80,7 +80,7 @@ internal sealed class Messenger
             dependency = new Message(source, _watcher);
         }
 
-        dependency.Refresh();
+        dependency.Reset();
 
         return dependency;
     }

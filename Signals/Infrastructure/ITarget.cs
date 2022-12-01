@@ -4,9 +4,7 @@ internal interface ITarget
 {
     Status Status { get; }
 
-    Message? Watching { get; }
-
-    void Watch(Message message);
+    Message? Watching { get; set; }
 
     void Notify();
 }

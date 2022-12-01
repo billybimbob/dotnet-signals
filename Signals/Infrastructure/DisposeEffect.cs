@@ -19,36 +19,38 @@ internal sealed class DisposingEffect : IEffect
 
     Status ITarget.Status => _status;
 
-    Message? ITarget.Watching => _watching;
-
-    void ITarget.Watch(Message message)
+    Message? ITarget.Watching
     {
-        if (message == _watching)
+        get => _watching;
+        set
         {
-            return;
+            if (value == _watching)
+            {
+                return;
+            }
+
+            if (value is { IsUnused: false })
+            {
+                return;
+            }
+
+            if (value is { TargetLink.IsFirst: true })
+            {
+                return;
+            }
+
+            if (_watching is { TargetLink: var oldTarget }
+                && value is { TargetLink: var target }
+                && oldTarget != target)
+            {
+                _ = oldTarget.SpliceBefore();
+                target.Pop();
+
+                oldTarget.Prepend(target);
+            }
+
+            _watching = value;
         }
-
-        if (!message.IsUnused)
-        {
-            return;
-        }
-
-        if (message.TargetLink.IsFirst)
-        {
-            return;
-        }
-
-        if (message.TargetLink is var target
-            && _watching?.TargetLink is Link<ITarget> oldTarget
-            && target != oldTarget)
-        {
-            target.Pop();
-            _ = oldTarget.SpliceBefore();
-
-            oldTarget.Prepend(target);
-        }
-
-        _watching = message;
     }
 
     void ITarget.Notify()
@@ -65,10 +67,7 @@ internal sealed class DisposingEffect : IEffect
     {
         _status &= ~Status.Notified;
 
-        bool? hasChanges = _watching
-            ?.Sources.Any(s => s.Listener?.ShouldRefresh ?? false);
-
-        if (hasChanges is false)
+        if (!Refresh())
         {
             return _next;
         }
@@ -109,6 +108,24 @@ internal sealed class DisposingEffect : IEffect
         }
 
         return _next;
+    }
+
+    private bool Refresh()
+    {
+        if (_watching is null)
+        {
+            return true;
+        }
+
+        foreach (var source in _watching.Sources)
+        {
+            if (source.Listener?.Refresh() is true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ApplyCleanup()

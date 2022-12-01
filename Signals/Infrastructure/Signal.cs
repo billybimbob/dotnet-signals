@@ -122,8 +122,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource
             return;
         }
 
-        if (_tracking?.TargetLink is Link<ITarget> oldTarget
-            && oldTarget != target)
+        if (_tracking is { TargetLink: var oldTarget } && oldTarget != target)
         {
             _ = target.SpliceAfter();
             oldTarget.Prepend(target);

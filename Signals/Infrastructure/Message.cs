@@ -4,7 +4,7 @@ internal sealed class Message
 {
     private const int Unused = -1;
 
-    public Message? _rollback;
+    private Message? _rollback;
     private int _version;
 
     public Message(Link<ISource> source, Link<ITarget> target)
@@ -18,13 +18,13 @@ internal sealed class Message
     public Message(ISource source, ITarget target)
         : this(new Link<ISource>(source), new Link<ITarget>(target))
     {
-        if (source.Listener?.SourceLink is Link<ISource> nextSource)
+        if (source is { Listener.SourceLink: var nextSource })
         {
             _ = nextSource.SpliceBefore();
             nextSource.Prepend(SourceLink);
         }
 
-        if (source.Listener?.TargetLink is Link<ITarget> nextTarget
+        if (source is { Listener.TargetLink: var nextTarget }
             && nextTarget.Value.Status.HasFlag(Status.Tracking))
         {
             _ = nextTarget.SpliceBefore();
@@ -60,29 +60,26 @@ internal sealed class Message
         }
     }
 
-    public bool ShouldRefresh
+    public bool Refresh()
     {
-        get
+        var source = SourceLink.Value;
+
+        if (_version != source.Listener?._version)
         {
-            var source = SourceLink.Value;
-
-            if (_version != source.Listener?._version)
-            {
-                return true;
-            }
-
-            if (!source.Refresh())
-            {
-                return true;
-            }
-
-            if (_version != source.Listener?._version)
-            {
-                return true;
-            }
-
-            return false;
+            return true;
         }
+
+        if (!source.Refresh())
+        {
+            return true;
+        }
+
+        if (_version != source.Listener?._version)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public void Backup()
@@ -106,10 +103,10 @@ internal sealed class Message
         }
     }
 
-    public void Refresh()
+    public void Reset()
     {
         SourceLink.Value.Track(this);
-        TargetLink.Value.Watch(this);
+        TargetLink.Value.Watching = this;
         _version = 0;
     }
 
