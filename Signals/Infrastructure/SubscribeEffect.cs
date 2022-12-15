@@ -2,8 +2,8 @@ namespace Signals.Infrastructure;
 
 internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 {
-    private readonly ISignal<T> _source;
     private readonly Messenger _messenger;
+    private readonly ISignal<T> _source;
     private readonly IReadOnlyCollection<IObserver<T>> _observers;
 
     private Status _status;
@@ -11,8 +11,8 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
     private IEffect? _next;
 
     public SubscribeEffect(
-        ISignal<T> source,
         Messenger messenger,
+        ISignal<T> source,
         IReadOnlyCollection<IObserver<T>> observers)
     {
         _status = Status.Tracking;
@@ -84,15 +84,15 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             throw new InvalidOperationException("Cycle detected");
         }
 
+        _status |= Status.Running;
         _status &= ~Status.Disposed;
 
         Backup();
 
         using var effects = _messenger.ApplyEffects();
-        using var exchange = _messenger.Exchange(this);
 
-        _status |= Status.Running;
-        _status &= ~Status.Tracking;
+        var watcher = _messenger.Watcher;
+        _messenger.Watcher = this;
 
         try
         {
@@ -102,13 +102,14 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         {
             Prune();
 
-            _status |= Status.Tracking;
             _status &= ~Status.Running;
 
             if (_status.HasFlag(Status.Disposed))
             {
                 Dispose();
             }
+
+            _messenger.Watcher = watcher;
         }
 
         return _next;
@@ -151,6 +152,8 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         {
             var value = _source.Value;
 
+            _status &= ~Status.Tracking;
+
             foreach (var observer in _observers)
             {
                 observer.OnNext(value);
@@ -158,6 +161,8 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         }
         catch (Exception e)
         {
+            _status &= ~Status.Tracking;
+
             foreach (var observer in _observers)
             {
                 observer.OnError(e);
@@ -165,6 +170,10 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 
             Dispose();
             throw;
+        }
+        finally
+        {
+            _status |= Status.Tracking;
         }
     }
 
@@ -179,38 +188,11 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         while (source is not null)
         {
             var next = source.Next;
-            watching = Cleanup(source, watching);
+            watching = source.Cleanup(watching);
             source = next;
         }
 
         _watching = watching;
-    }
-
-    private static Message? Cleanup(Link<ISource> source, Message? root)
-    {
-        if (source.Value.Listener is not Message listener)
-        {
-            throw new InvalidOperationException("Source is missing listener");
-        }
-
-        listener.Restore();
-
-        if (listener.IsUnused)
-        {
-            _ = source.Pop();
-            source.Value.Untrack(listener);
-        }
-        else
-        {
-            if (root is { SourceLink: var rootSource })
-            {
-                rootSource.Prepend(source.Pop());
-            }
-
-            root = listener;
-        }
-
-        return root;
     }
 
     public void Dispose()

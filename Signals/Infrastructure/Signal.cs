@@ -7,7 +7,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
 {
     private readonly Messenger _messenger;
     private readonly HashSet<IObserver<T>> _observers;
-    private SubscribeEffect<T>? _subscription;
+    private IDisposable? _subscription;
 
     private T _value;
     private int _version;
@@ -43,7 +43,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
 
             _value = value;
             _version++;
-            _messenger.UpdateVersion();
+            _messenger.Notify();
 
             using var effects = _messenger.ApplyEffects();
 
@@ -65,8 +65,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
 
         if (_subscription is null)
         {
-            _subscription = new SubscribeEffect<T>(this, _messenger, _observers);
-            _ = _subscription.Run();
+            _subscription = _messenger.Subscribe(this, _observers);
         }
         else
         {

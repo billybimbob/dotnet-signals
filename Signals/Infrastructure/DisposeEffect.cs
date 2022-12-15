@@ -83,14 +83,16 @@ internal sealed class DisposingEffect : IEffect
         _status |= Status.Running;
         _status &= ~Status.Disposed;
 
+        ApplyCleanup();
+        Backup();
+
+        using var effects = _messenger.ApplyEffects();
+
+        var watcher = _messenger.Watcher;
+        _messenger.Watcher = this;
+
         try
         {
-            ApplyCleanup();
-            Backup();
-
-            using var effects = _messenger.ApplyEffects();
-            using var exchange = _messenger.Exchange(this);
-
             _cleanup = _callback.Invoke();
         }
         finally
@@ -103,6 +105,8 @@ internal sealed class DisposingEffect : IEffect
             {
                 Dispose();
             }
+
+            _messenger.Watcher = watcher;
         }
 
         return _next;
@@ -136,7 +140,9 @@ internal sealed class DisposingEffect : IEffect
         _cleanup = null;
 
         using var effects = _messenger.ApplyEffects();
-        using var exchange = _messenger.Exchange(this);
+
+        var watcher = _messenger.Watcher;
+        _messenger.Watcher = null;
 
         try
         {
@@ -144,8 +150,13 @@ internal sealed class DisposingEffect : IEffect
         }
         catch (Exception)
         {
+            _status &= ~Status.Running;
             Dispose();
             throw;
+        }
+        finally
+        {
+            _messenger.Watcher = watcher;
         }
     }
 
@@ -173,38 +184,11 @@ internal sealed class DisposingEffect : IEffect
         while (source is not null)
         {
             var next = source.Next;
-            watching = Cleanup(source, watching);
+            watching = source.Cleanup(watching);
             source = next;
         }
 
         _watching = watching;
-    }
-
-    private static Message? Cleanup(Link<ISource> source, Message? root)
-    {
-        if (source.Value.Listener is not Message listener)
-        {
-            throw new InvalidOperationException("Source is missing listener");
-        }
-
-        listener.Restore();
-
-        if (listener.IsUnused)
-        {
-            _ = source.Pop();
-            source.Value.Untrack(listener);
-        }
-        else
-        {
-            if (root is { SourceLink: var rootSource })
-            {
-                rootSource.Prepend(source.Pop());
-            }
-
-            root = listener;
-        }
-
-        return root;
     }
 
     public void Dispose()

@@ -79,14 +79,15 @@ internal sealed class DefaultEffect : IEffect
             throw new InvalidOperationException("Cycle detected");
         }
 
+        _status |= Status.Running;
         _status &= ~Status.Disposed;
 
         Backup();
 
         using var effects = _messenger.ApplyEffects();
-        using var exchange = _messenger.Exchange(this);
 
-        _status |= Status.Running;
+        var watcher = _messenger.Watcher;
+        _messenger.Watcher = this;
 
         try
         {
@@ -102,6 +103,8 @@ internal sealed class DefaultEffect : IEffect
             {
                 Dispose();
             }
+
+            _messenger.Watcher = watcher;
         }
 
         return _next;
@@ -149,38 +152,11 @@ internal sealed class DefaultEffect : IEffect
         while (source is not null)
         {
             var next = source.Next;
-            watching = Cleanup(source, watching);
+            watching = source.Cleanup(watching);
             source = next;
         }
 
         _watching = watching;
-    }
-
-    private static Message? Cleanup(Link<ISource> source, Message? root)
-    {
-        if (source.Value.Listener is not Message listener)
-        {
-            throw new InvalidOperationException("Source is missing listener");
-        }
-
-        listener.Restore();
-
-        if (listener.IsUnused)
-        {
-            _ = source.Pop();
-            source.Value.Untrack(listener);
-        }
-        else
-        {
-            if (root is { SourceLink: var rootSource })
-            {
-                rootSource.Prepend(source.Pop());
-            }
-
-            root = listener;
-        }
-
-        return root;
     }
 
     public void Dispose()

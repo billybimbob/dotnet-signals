@@ -6,20 +6,20 @@ internal sealed class Messenger
 {
     private int _batchDepth;
     private int _iteration;
-    private ITarget? _watcher;
 
     public int Version { get; private set; }
 
+    public ITarget? Watcher { get; set; }
+
     public IEffect? Effect { get; set; }
 
-    public void UpdateVersion() => Version++;
+    public void Notify() => Version++;
 
     public BatchChange ApplyEffects()
     {
         _batchDepth++;
 
         return new BatchChange(FlushEffects, _batchDepth > 1);
-
     }
 
     private void FlushEffects()
@@ -70,31 +70,38 @@ internal sealed class Messenger
         }
     }
 
+    public IDisposable Subscribe<T>(ISignal<T> source, IReadOnlyCollection<IObserver<T>> observers)
+        where T : IEquatable<T>
+    {
+        var effect = new SubscribeEffect<T>(this, source, observers);
+
+        try
+        {
+            _ = effect.Run();
+            return effect;
+        }
+        catch (Exception)
+        {
+            effect.Dispose();
+            throw;
+        }
+    }
+
     public Message? AddDependency(ISource source)
     {
-        if (_watcher == null)
+        if (Watcher is not ITarget watcher)
         {
             return null;
         }
 
         if (source.Listener is not Message dependency
-            || dependency.TargetLink.Value != _watcher)
+            || dependency.TargetLink.Value != watcher)
         {
-            dependency = new Message(source, _watcher);
+            dependency = new Message(source, watcher);
         }
 
         dependency.Reset();
 
         return dependency;
-    }
-
-    public TargetExchange Exchange(ITarget newWatcher)
-    {
-        var oldWatcher = _watcher;
-        _watcher = newWatcher;
-
-        return new TargetExchange(Revert, oldWatcher);
-
-        void Revert() => _watcher = oldWatcher;
     }
 }

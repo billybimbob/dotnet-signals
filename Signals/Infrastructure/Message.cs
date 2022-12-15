@@ -20,15 +20,19 @@ internal sealed class Message
     {
         if (source is { Listener.SourceLink: var nextSource })
         {
+            var currentSource = SourceLink.Pop();
             _ = nextSource.SpliceBefore();
-            nextSource.Prepend(SourceLink.Pop());
+
+            nextSource.Prepend(currentSource);
         }
 
         if (source is { Listener.TargetLink: var nextTarget }
             && nextTarget.Value.Status.HasFlag(Status.Tracking))
         {
+            var currentTarget = TargetLink.Pop();
             _ = nextTarget.SpliceBefore();
-            nextTarget.Prepend(TargetLink.Pop());
+
+            nextTarget.Prepend(currentTarget);
         }
     }
 

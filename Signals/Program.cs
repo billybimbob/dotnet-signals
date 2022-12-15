@@ -2,9 +2,16 @@
 
 var signals = new SignalProvider();
 
-var source = signals.CreateSource(4);
+var source = signals.Source(4);
+var timesTwo = signals.Derive(() => source.Value * 2);
 
-signals.Watch(() => Console.WriteLine($"signal is {source.Value}"));
+_ = signals.Watch(() => Console.WriteLine($"signal is {source.Value}"));
+_ = signals.Watch(() => Console.WriteLine($"derived times two is {timesTwo.Value}"));
+
+// TODO: fix bug where ordering of subscription flips
+
+_ = source.Subscribe(new SourceObserver());
+_ = timesTwo.Subscribe(new DerivedObserver());
 
 int[] intervals = { 400, 100, 200, };
 
@@ -17,3 +24,29 @@ foreach (int delay in intervals)
 
 source.Value = 7;
 source.Value = 7;
+
+sealed file class SourceObserver : IObserver<int>
+{
+    void IObserver<int>.OnCompleted()
+        => Console.WriteLine("Completed source observation");
+
+    void IObserver<int>.OnError(Exception error)
+        => Console.WriteLine($"Observed source exception {error}");
+
+    void IObserver<int>.OnNext(int value)
+        => Console.WriteLine($"Observed source value {value}");
+}
+
+sealed file class DerivedObserver : IObserver<int>
+{
+    void IObserver<int>.OnCompleted()
+        => Console.WriteLine("Completed derived observation");
+
+    void IObserver<int>.OnError(Exception error)
+        => Console.WriteLine($"Observed derived exception {error}");
+
+    void IObserver<int>.OnNext(int value)
+        => Console.WriteLine($"Observed derived value {value}");
+}
+
+sealed file record Name(string First, string Last);

@@ -113,3 +113,33 @@ internal sealed class Link<T>
         }
     }
 }
+
+internal static class SourceLinkExtensions
+{
+    public static Message? Cleanup(this Link<ISource> source, Message? root)
+    {
+        if (source.Value.Listener is not Message listener)
+        {
+            throw new InvalidOperationException("Source is missing listener");
+        }
+
+        listener.Restore();
+
+        if (listener.IsUnused)
+        {
+            _ = source.Pop();
+            source.Value.Untrack(listener);
+        }
+        else
+        {
+            if (root is { SourceLink: var rootSource })
+            {
+                rootSource.Prepend(source.Pop());
+            }
+
+            root = listener;
+        }
+
+        return root;
+    }
+}
