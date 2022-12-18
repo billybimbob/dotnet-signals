@@ -25,9 +25,9 @@ foreach (int delay in intervals)
 source.Value = 7;
 source.Value = 7;
 
-sealed file record Name(string First, string Last);
+file sealed record Name(string First, string Last);
 
-sealed file class SourceObserver : IObserver<int>
+file sealed class SourceObserver : IObserver<int>
 {
     void IObserver<int>.OnCompleted()
         => Console.WriteLine("Completed source observation");
@@ -39,7 +39,7 @@ sealed file class SourceObserver : IObserver<int>
         => Console.WriteLine($"Observed source value {value}");
 }
 
-sealed file class DerivedObserver : IObserver<int>
+file sealed class DerivedObserver : IObserver<int>
 {
     void IObserver<int>.OnCompleted()
         => Console.WriteLine("Completed derived observation");

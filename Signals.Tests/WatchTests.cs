@@ -1,10 +1,14 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
 namespace Signals.Tests;
 
+[TestClass]
 public class WatchTests
 {
-    [Fact]
-    public void Test1()
-    {
+    private readonly SignalProvider _signals;
 
+    public WatchTests()
+    {
+        _signals = new SignalProvider();
     }
 }
