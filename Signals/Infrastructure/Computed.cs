@@ -40,8 +40,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
     {
         get
         {
-            _status &= ~Status.Notified;
-
             if (_status.HasFlag(Status.Running))
             {
                 throw new InvalidOperationException("Cycle detected");
@@ -280,7 +278,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
 
         if (_tracking is null)
         {
-            TrackWatching(message);
+            TrackListener(message);
         }
 
         if (message == _tracking)
@@ -301,7 +299,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
         _tracking = message;
     }
 
-    private void TrackWatching(Message message)
+    private void TrackListener(Message message)
     {
         _status |= Status.Outdated | Status.Tracking;
 

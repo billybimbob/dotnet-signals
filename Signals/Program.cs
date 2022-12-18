@@ -5,13 +5,13 @@ var signals = new SignalProvider();
 var source = signals.Source(4);
 var timesTwo = signals.Derive(() => source.Value * 2);
 
-_ = signals.Watch(() => Console.WriteLine($"signal is {source.Value}"));
-_ = signals.Watch(() => Console.WriteLine($"derived times two is {timesTwo.Value}"));
+using var watch1 = signals.Watch(() => Console.WriteLine($"signal is {source.Value}"));
+using var watch2 = signals.Watch(() => Console.WriteLine($"derived times two is {timesTwo.Value}"));
 
 // TODO: fix bug where ordering of subscription flips
 
-_ = source.Subscribe(new SourceObserver());
-_ = timesTwo.Subscribe(new DerivedObserver());
+using var subscription1 = source.Subscribe(new SourceObserver());
+using var subscription2 = timesTwo.Subscribe(new DerivedObserver());
 
 int[] intervals = { 400, 100, 200, };
 
@@ -24,6 +24,8 @@ foreach (int delay in intervals)
 
 source.Value = 7;
 source.Value = 7;
+
+sealed file record Name(string First, string Last);
 
 sealed file class SourceObserver : IObserver<int>
 {
@@ -48,5 +50,3 @@ sealed file class DerivedObserver : IObserver<int>
     void IObserver<int>.OnNext(int value)
         => Console.WriteLine($"Observed derived value {value}");
 }
-
-sealed file record Name(string First, string Last);
