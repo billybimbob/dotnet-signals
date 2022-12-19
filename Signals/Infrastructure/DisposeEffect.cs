@@ -12,9 +12,9 @@ internal sealed class DisposingEffect : IEffect
 
     public DisposingEffect(Messenger messenger, Func<Action> callback)
     {
-        _status = Status.Tracking;
         _messenger = messenger;
         _callback = callback;
+        _status = Status.Tracking;
     }
 
     Status ITarget.Status => _status;

@@ -15,10 +15,10 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         ISignal<T> source,
         IReadOnlyCollection<IObserver<T>> observers)
     {
-        _status = Status.Tracking;
         _messenger = messenger;
         _source = source;
         _observers = observers;
+        _status = Status.Tracking;
     }
 
     Status ITarget.Status => _status;

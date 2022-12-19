@@ -8,32 +8,32 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
     private readonly Messenger _messenger;
     private int _lastMessage;
 
-    private int _version;
-    private Status _status;
-
     private readonly HashSet<IObserver<T>> _observers;
     private IDisposable? _subscription;
-
-    private Message? _watching;
-    private Message? _listener;
-    private Message? _tracking;
 
     private readonly Func<T> _compute;
     private Exception? _exception;
     private T _value;
+
+    private int _version;
+    private Status _status;
+
+    private Message? _watching;
+    private Message? _listener;
+    private Message? _tracking;
 
     internal Computed(Messenger messenger, Func<T> compute)
     {
         _messenger = messenger;
         _lastMessage = messenger.Version - 1;
 
-        _version = 0;
-        _status = Status.Outdated;
-
         _observers = new HashSet<IObserver<T>>();
 
         _compute = compute;
         _value = default!; // _value is computed lazily with Recompute
+
+        _version = 0;
+        _status = Status.Outdated;
     }
 
     T ISignal<T>.Peek
@@ -68,7 +68,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
             var dependency = _messenger.AddDependency(this);
 
             Refresh();
-
             dependency?.SyncVersion();
 
             if (_exception is not null)
@@ -235,6 +234,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
         if (_observers.Count is 0)
         {
             _subscription?.Dispose();
+            _subscription = null;
         }
     }
 

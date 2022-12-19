@@ -11,9 +11,9 @@ internal sealed class DefaultEffect : IEffect
 
     public DefaultEffect(Messenger messenger, Action callback)
     {
-        _status = Status.Tracking;
         _messenger = messenger;
         _callback = callback;
+        _status = Status.Tracking;
     }
 
     Status ITarget.Status => _status;

@@ -82,6 +82,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
         if (_observers.Count is 0)
         {
             _subscription?.Dispose();
+            _subscription = null;
         }
     }
 

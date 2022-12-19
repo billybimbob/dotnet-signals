@@ -11,4 +11,9 @@ public class DeriveTests
     {
         _signals = new SignalProvider();
     }
+
+    // [TestMethod]
+    // public void Subscribe_MultipleDisposeCalls_NoThrow()
+    // {
+    // }
 }
