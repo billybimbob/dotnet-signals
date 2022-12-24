@@ -2,14 +2,13 @@ using Signals.Infrastructure.Disposables;
 
 namespace Signals.Infrastructure;
 
-internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
+internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
     private int _lastMessage;
 
-    private readonly HashSet<IObserver<T>> _observers;
-    private IDisposable? _subscription;
+    private SubscribeEffect? _subscription;
 
     private readonly Func<T> _compute;
     private Exception? _exception;
@@ -26,8 +25,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
     {
         _messenger = messenger;
         _lastMessage = messenger.Version - 1;
-
-        _observers = new HashSet<IObserver<T>>();
 
         _compute = compute;
         _value = default!; // _value is computed lazily with Recompute
@@ -199,43 +196,25 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget
             throw new InvalidOperationException("Cycle Detected");
         }
 
-        _ = _observers.Add(observer);
+        _subscription ??= _messenger.Subscribe(this);
+        _subscription.Add(observer);
 
-        if (_subscription is null)
-        {
-            _subscription = _messenger.Subscribe(this, _observers);
-        }
-        else
-        {
-            NotifyCurrent(observer);
-        }
-
-        return new SignalCleanup<T>(Cleanup, observer);
+        return new SignalCleanup<T>(this, observer);
     }
 
-    private void NotifyCurrent(IObserver<T> observer)
+    SubscribeEffect? ISubscriber.Target
     {
-        Refresh();
-
-        if (_exception is not null)
-        {
-            observer.OnError(_exception);
-        }
-        else
-        {
-            observer.OnNext(_value);
-        }
+        get => _subscription;
+        set => _subscription = value;
     }
 
-    private void Cleanup(IObserver<T> observer)
+    void IDisposable.Dispose()
     {
-        _ = _observers.Remove(observer);
+        _subscription?.Dispose();
+        _subscription = null;
 
-        if (_observers.Count is 0)
-        {
-            _subscription?.Dispose();
-            _subscription = null;
-        }
+        _listener = null;
+        _tracking = null;
     }
 
     int ISource.Version => _version;

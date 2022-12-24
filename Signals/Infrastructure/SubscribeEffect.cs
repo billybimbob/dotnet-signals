@@ -4,21 +4,55 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
     private readonly ISignal<T> _source;
-    private readonly IReadOnlyCollection<IObserver<T>> _observers;
+    private readonly HashSet<IObserver<T>> _observers;
+
+    private T _value;
+    private Exception? _exception;
 
     private Status _status;
     private Message? _watching;
     private IEffect? _next;
 
-    public SubscribeEffect(
-        Messenger messenger,
-        ISignal<T> source,
-        IReadOnlyCollection<IObserver<T>> observers)
+    public SubscribeEffect(Messenger messenger, ISignal<T> source)
     {
         _messenger = messenger;
         _source = source;
-        _observers = observers;
-        _status = Status.Tracking;
+        _observers = new HashSet<IObserver<T>>();
+
+        _value = default!;
+        _status = Status.Outdated | Status.Tracking;
+    }
+
+    public bool IsUnused => _observers.Count is 0;
+
+    public void Add(IObserver<T> observer)
+    {
+        bool isNew = _observers.Add(observer);
+
+        if (!isNew)
+        {
+            return;
+        }
+
+        if (_status.HasFlag(Status.Outdated))
+        {
+            return;
+        }
+
+        if (_exception is not null)
+        {
+            observer.OnError(_exception);
+            throw _exception;
+        }
+        else
+        {
+            observer.OnNext(_value);
+        }
+    }
+
+    public void Remove(IObserver<T> observer)
+    {
+        _ = _observers.Remove(observer);
     }
 
     Status ITarget.Status => _status;
@@ -158,6 +192,9 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             {
                 observer.OnNext(value);
             }
+
+            _value = value;
+            _exception = null;
         }
         catch (Exception e)
         {
@@ -168,12 +205,16 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
                 observer.OnError(e);
             }
 
+            _value = default!;
+            _exception = e;
+
             Dispose();
             throw;
         }
         finally
         {
             _status |= Status.Tracking;
+            _status &= ~Status.Outdated;
         }
     }
 
@@ -204,6 +245,12 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             return;
         }
 
+        foreach (var observer in _observer)
+        {
+            observer.OnCompleted();
+        }
+        
+        _observer.Clear();
         _next = null;
 
         if (_watching is null)

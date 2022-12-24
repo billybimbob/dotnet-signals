@@ -70,10 +70,10 @@ internal sealed class Messenger
         }
     }
 
-    public IDisposable Subscribe<T>(ISignal<T> source, IReadOnlyCollection<IObserver<T>> observers)
+    public SubscribeEffect Subscribe<T>(ISignal<T> source)
         where T : IEquatable<T>
     {
-        var effect = new SubscribeEffect<T>(this, source, observers);
+        var effect = new SubscribeEffect<T>(this, source);
 
         try
         {

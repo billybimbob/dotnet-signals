@@ -2,12 +2,11 @@ using Signals.Infrastructure.Disposables;
 
 namespace Signals.Infrastructure;
 
-internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
+internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
-    private readonly HashSet<IObserver<T>> _observers;
-    private IDisposable? _subscription;
+    private SubscribeEffect? _subscription;
 
     private T _value;
     private int _version;
@@ -18,7 +17,6 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
     internal Signal(Messenger messenger, T value)
     {
         _messenger = messenger;
-        _observers = new HashSet<IObserver<T>>();
         _value = value;
         _version = 0;
     }
@@ -61,35 +59,20 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, IDisposable
 
     public IDisposable Subscribe(IObserver<T> observer)
     {
-        _ = _observers.Add(observer);
+        _subscription ??= _messenger.Subscribe(this);
+        _subscription.Add(observer);
 
-        if (_subscription is null)
-        {
-            _subscription = _messenger.Subscribe(this, _observers);
-        }
-        else
-        {
-            observer.OnNext(_value);
-        }
-
-        return new SignalCleanup<T>(Cleanup, observer);
+        return new SignalCleanup<T>(this, observer);
     }
 
-    private void Cleanup(IObserver<T> observer)
+    SubscribeEffect? ISubscriber.Target
     {
-        _ = _observers.Remove(observer);
-
-        if (_observers.Count is 0)
-        {
-            _subscription?.Dispose();
-            _subscription = null;
-        }
+        get => _subscription;
+        set => _subscription = value;
     }
 
     void IDisposable.Dispose()
     {
-        _observers.Clear();
-
         _subscription?.Dispose();
         _subscription = null;
 
