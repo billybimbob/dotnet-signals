@@ -23,38 +23,6 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         _status = Status.Outdated | Status.Tracking;
     }
 
-    public bool IsUnused => _observers.Count is 0;
-
-    public void Add(IObserver<T> observer)
-    {
-        bool isNew = _observers.Add(observer);
-
-        if (!isNew)
-        {
-            return;
-        }
-
-        if (_status.HasFlag(Status.Outdated))
-        {
-            return;
-        }
-
-        if (_exception is not null)
-        {
-            observer.OnError(_exception);
-            throw _exception;
-        }
-        else
-        {
-            observer.OnNext(_value);
-        }
-    }
-
-    public void Remove(IObserver<T> observer)
-    {
-        _ = _observers.Remove(observer);
-    }
-
     Status ITarget.Status => _status;
 
     Message? ITarget.Watching
@@ -187,26 +155,28 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             var value = _source.Value;
 
             _status &= ~Status.Tracking;
+            _value = value;
+            _exception = null;
 
             foreach (var observer in _observers)
             {
+                // keep eye on exceptions that occur here
+                // thrown exceptions can potentially lead
+                // to partial observation updates
+
                 observer.OnNext(value);
             }
-
-            _value = value;
-            _exception = null;
         }
         catch (Exception e)
         {
             _status &= ~Status.Tracking;
+            _value = default!;
+            _exception = e;
 
             foreach (var observer in _observers)
             {
                 observer.OnError(e);
             }
-
-            _value = default!;
-            _exception = e;
 
             Dispose();
             throw;
@@ -236,6 +206,39 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         _watching = watching;
     }
 
+    public void Add(IObserver<T> observer)
+    {
+        bool isNew = _observers.Add(observer);
+
+        if (!isNew)
+        {
+            return;
+        }
+
+        if (_status.HasFlag(Status.Outdated))
+        {
+            return;
+        }
+
+        if (_exception is not null)
+        {
+            observer.OnError(_exception);
+            throw _exception;
+        }
+        else
+        {
+            observer.OnNext(_value);
+        }
+    }
+
+    /// <returns> true the effect has no more observers </returns>
+    public bool Remove(IObserver<T> observer)
+    {
+        _ = _observers.Remove(observer);
+
+        return _observers.Count is 0;
+    }
+
     public void Dispose()
     {
         _status |= Status.Disposed;
@@ -245,12 +248,12 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             return;
         }
 
-        foreach (var observer in _observer)
+        foreach (var observer in _observers)
         {
             observer.OnCompleted();
         }
         
-        _observer.Clear();
+        _observers.Clear();
         _next = null;
 
         if (_watching is null)

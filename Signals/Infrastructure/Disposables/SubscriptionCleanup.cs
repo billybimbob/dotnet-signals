@@ -1,11 +1,12 @@
 namespace Signals.Infrastructure.Disposables;
 
-internal sealed class SignalCleanup<T> : IDisposable
+internal sealed class SubscriptionCleanup<T> : IDisposable
+    where T : IEquatable<T>
 {
-    private readonly ISubscriber _subscriber;
+    private readonly ISubscriber<T> _subscriber;
     private readonly IObserver<T> _observer;
 
-    public SignalCleanup(ISubscriber subscriber, IObserver<T> observer)
+    public SubscriptionCleanup(ISubscriber<T> subscriber, IObserver<T> observer)
     {
         _subscriber = subscriber;
         _observer = observer;
@@ -18,9 +19,9 @@ internal sealed class SignalCleanup<T> : IDisposable
             return;
         }
 
-        _subscriber.Target.Remove(_observer);
+        bool isUnused = _subscriber.Target.Remove(_observer);
 
-        if (_subscriber.Target.IsUnused)
+        if (isUnused)
         {
             _subscriber.Target.Dispose();
             _subscriber.Target = null;

@@ -2,13 +2,13 @@ using Signals.Infrastructure.Disposables;
 
 namespace Signals.Infrastructure;
 
-internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber
+internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
     private int _lastMessage;
 
-    private SubscribeEffect? _subscription;
+    private SubscribeEffect<T>? _subscription;
 
     private readonly Func<T> _compute;
     private Exception? _exception;
@@ -199,22 +199,13 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber
         _subscription ??= _messenger.Subscribe(this);
         _subscription.Add(observer);
 
-        return new SignalCleanup<T>(this, observer);
+        return new SubscriptionCleanup<T>(this, observer);
     }
 
-    SubscribeEffect? ISubscriber.Target
+    SubscribeEffect<T>? ISubscriber<T>.Target
     {
         get => _subscription;
         set => _subscription = value;
-    }
-
-    void IDisposable.Dispose()
-    {
-        _subscription?.Dispose();
-        _subscription = null;
-
-        _listener = null;
-        _tracking = null;
     }
 
     int ISource.Version => _version;

@@ -1,7 +1,7 @@
-namescape Signals.Infrastructure;
+namespace Signals.Infrastructure;
 
-internal interface ISubscriber : IDisposable
+internal interface ISubscriber<T> where T : IEquatable<T>
 {
-    SubscriberEffect? Target { get; set; }
+    SubscribeEffect<T>? Target { get; set; }
 }
 

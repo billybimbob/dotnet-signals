@@ -70,7 +70,7 @@ internal sealed class Messenger
         }
     }
 
-    public SubscribeEffect Subscribe<T>(ISignal<T> source)
+    public SubscribeEffect<T> Subscribe<T>(ISignal<T> source)
         where T : IEquatable<T>
     {
         var effect = new SubscribeEffect<T>(this, source);

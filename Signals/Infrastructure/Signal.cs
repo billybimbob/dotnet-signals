@@ -2,11 +2,11 @@ using Signals.Infrastructure.Disposables;
 
 namespace Signals.Infrastructure;
 
-internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber
+internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
     where T : IEquatable<T>
 {
     private readonly Messenger _messenger;
-    private SubscribeEffect? _subscription;
+    private SubscribeEffect<T>? _subscription;
 
     private T _value;
     private int _version;
@@ -62,22 +62,13 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber
         _subscription ??= _messenger.Subscribe(this);
         _subscription.Add(observer);
 
-        return new SignalCleanup<T>(this, observer);
+        return new SubscriptionCleanup<T>(this, observer);
     }
 
-    SubscribeEffect? ISubscriber.Target
+    SubscribeEffect<T>? ISubscriber<T>.Target
     {
         get => _subscription;
         set => _subscription = value;
-    }
-
-    void IDisposable.Dispose()
-    {
-        _subscription?.Dispose();
-        _subscription = null;
-
-        _listener = null;
-        _tracking = null;
     }
 
     #region ISource impl
