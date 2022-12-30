@@ -286,6 +286,11 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
 
     void ISource.Untrack(Message message)
     {
+        if (_tracking is null)
+        {
+            return;
+        }
+
         var target = message.TargetLink;
 
         if (_tracking == message)

@@ -252,7 +252,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         {
             observer.OnCompleted();
         }
-        
+
         _observers.Clear();
         _next = null;
 
