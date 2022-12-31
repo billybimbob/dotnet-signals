@@ -17,7 +17,7 @@ internal sealed class Link<T>
         Value = value;
     }
 
-    public SingleLink Pop()
+    public Single Pop()
     {
         if (Previous is not null)
         {
@@ -33,7 +33,7 @@ internal sealed class Link<T>
 
         Next = null;
 
-        return new SingleLink(this);
+        return new Single(this);
     }
 
     public Link<T>? SpliceBefore()
@@ -62,7 +62,7 @@ internal sealed class Link<T>
         return head;
     }
 
-    public void Prepend(SingleLink single)
+    public void Prepend(Single single)
     {
         if (single.Link is not Link<T> link)
         {
@@ -80,7 +80,25 @@ internal sealed class Link<T>
         Previous = link;
     }
 
-    public readonly ref struct SingleLink
+    public void Append(Single single)
+    {
+        if (single.Link is not Link<T> link)
+        {
+            return;
+        }
+
+        link.Previous = this;
+        link.Next = Next;
+
+        if (Next is not null)
+        {
+            Next.Previous = link;
+        }
+
+        Next = link;
+    }
+
+    internal readonly ref struct Single
     {
         private readonly Link<T>? _link;
 
@@ -107,39 +125,9 @@ internal sealed class Link<T>
             }
         }
 
-        internal SingleLink(Link<T> link)
+        internal Single(Link<T> link)
         {
             _link = link;
         }
-    }
-}
-
-internal static class SourceLinkExtensions
-{
-    public static Message? Cleanup(this Link<ISource> source, Message? root)
-    {
-        if (source.Value.Listener is not Message listener)
-        {
-            throw new InvalidOperationException("Source is missing listener");
-        }
-
-        listener.Restore();
-
-        if (listener.IsUnused)
-        {
-            _ = source.Pop();
-            source.Value.Untrack(listener);
-        }
-        else
-        {
-            if (root is { SourceLink: var rootSource })
-            {
-                rootSource.Prepend(source.Pop());
-            }
-
-            root = listener;
-        }
-
-        return root;
     }
 }

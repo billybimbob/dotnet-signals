@@ -64,7 +64,7 @@ internal sealed class DefaultEffect : IEffect
     {
         _status &= ~Status.Notified;
 
-        if (!Refresh())
+        if (!Lifecycle.Refresh(_watching))
         {
             return _next;
         }
@@ -82,7 +82,7 @@ internal sealed class DefaultEffect : IEffect
         _status |= Status.Running;
         _status &= ~Status.Disposed;
 
-        Backup();
+        Lifecycle.Backup(ref _watching);
 
         using var effects = _messenger.ApplyEffects();
 
@@ -95,7 +95,7 @@ internal sealed class DefaultEffect : IEffect
         }
         finally
         {
-            Prune();
+            Lifecycle.Prune(ref _watching);
 
             _status &= ~Status.Running;
 
@@ -108,55 +108,6 @@ internal sealed class DefaultEffect : IEffect
         }
 
         return _next;
-    }
-
-    private bool Refresh()
-    {
-        if (_watching is null)
-        {
-            return true;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            if (source.Listener?.Refresh() is true)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void Backup()
-    {
-        if (_watching is null)
-        {
-            return;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            source.Listener?.Backup();
-        }
-    }
-
-    private void Prune()
-    {
-        Message? watching = null;
-
-        var source = _watching?.SourceLink;
-
-        // use while loop since source is modified during iter
-
-        while (source is not null)
-        {
-            var next = source.Next;
-            watching = source.Cleanup(watching);
-            source = next;
-        }
-
-        _watching = watching;
     }
 
     public void Dispose()

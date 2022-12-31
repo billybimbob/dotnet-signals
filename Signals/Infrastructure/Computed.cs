@@ -95,24 +95,13 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         _lastMessage = _messenger.Version;
         _status |= Status.Running;
 
-        Backup();
+        Lifecycle.Backup(ref _watching);
+
         Recompute();
-        Prune();
+
+        Lifecycle.Prune(ref _watching);
 
         _status &= ~Status.Running;
-    }
-
-    private void Backup()
-    {
-        if (_watching is null)
-        {
-            return;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            source.Listener?.Backup();
-        }
     }
 
     private void Recompute()
@@ -169,24 +158,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         }
 
         return false;
-    }
-
-    private void Prune()
-    {
-        Message? watching = null;
-
-        var source = _watching?.SourceLink;
-
-        // use while loop since source is modified during iter
-
-        while (source is not null)
-        {
-            var next = source.Next;
-            watching = source.Cleanup(watching);
-            source = next;
-        }
-
-        _watching = watching;
     }
 
     public IDisposable Subscribe(IObserver<T> observer)

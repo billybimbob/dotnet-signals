@@ -25,8 +25,6 @@ foreach (int delay in intervals)
 source.Value = 7;
 source.Value = 7;
 
-file sealed record Name(string First, string Last);
-
 file sealed class SourceObserver : IObserver<int>
 {
     void IObserver<int>.OnCompleted()

@@ -46,7 +46,10 @@ internal sealed class Message
     {
         get
         {
-            for (var target = TargetLink; target is not null; target = target.Next)
+            for (
+                var target = TargetLink;
+                target is not null;
+                target = target.Next)
             {
                 yield return target.Value;
             }
@@ -57,7 +60,10 @@ internal sealed class Message
     {
         get
         {
-            for (var source = SourceLink; source is not null; source = source.Next)
+            for (
+                var source = SourceLink;
+                source is not null;
+                source = source.Next)
             {
                 yield return source.Value;
             }
