@@ -1,4 +1,4 @@
-using Signals.Infrastructure.Disposables;
+using Signals.Infrastructure.Subscription;
 
 namespace Signals.Infrastructure;
 
@@ -106,7 +106,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
 
     private void Recompute()
     {
-        if (!RefreshWatching())
+        if (_version != 0 && !Lifecycle.Refresh(_watching))
         {
             return;
         }
@@ -135,29 +135,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         {
             _messenger.Watcher = watcher;
         }
-    }
-
-    private bool RefreshWatching()
-    {
-        if (_version == 0)
-        {
-            return true;
-        }
-
-        if (_watching is null)
-        {
-            return true;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            if (source.Listener?.Refresh() is true)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     public IDisposable Subscribe(IObserver<T> observer)
@@ -219,7 +196,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
 
         if (_tracking is null)
         {
-            TrackListener(message);
+            TrackWatcher(message);
         }
 
         if (message == _tracking)
@@ -240,7 +217,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         _tracking = message;
     }
 
-    private void TrackListener(Message message)
+    private void TrackWatcher(Message message)
     {
         _status |= Status.Outdated | Status.Tracking;
 

@@ -1,4 +1,4 @@
-namespace Signals.Infrastructure;
+namespace Signals.Infrastructure.Subscription;
 
 internal interface ISubscriber<T> where T : IEquatable<T>
 {

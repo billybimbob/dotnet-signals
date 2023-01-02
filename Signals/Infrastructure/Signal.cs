@@ -1,4 +1,4 @@
-using Signals.Infrastructure.Disposables;
+using Signals.Infrastructure.Subscription;
 
 namespace Signals.Infrastructure;
 
@@ -34,26 +34,30 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
         }
         set
         {
+            if (_messenger.Watcher is not null and not IEffect)
+            {
+                throw new InvalidOperationException("Mutation from illegal source");
+            }
+
             if (_value.Equals(value))
             {
                 return;
             }
 
+            var targets = _tracking?.Targets ?? Enumerable.Empty<ITarget>();
+            var effects = _messenger.StartEffects();
+
             _value = value;
             _version++;
+
             _messenger.Notify();
 
-            using var effects = _messenger.ApplyEffects();
-
-            if (_tracking is null)
-            {
-                return;
-            }
-
-            foreach (var target in _tracking.Targets)
+            foreach (var target in targets)
             {
                 target.Notify();
             }
+
+            effects.Finish();
         }
     }
 

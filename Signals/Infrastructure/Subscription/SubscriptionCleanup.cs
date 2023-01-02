@@ -1,4 +1,4 @@
-namespace Signals.Infrastructure.Disposables;
+namespace Signals.Infrastructure.Subscription;
 
 internal sealed class SubscriptionCleanup<T> : IDisposable
     where T : IEquatable<T>

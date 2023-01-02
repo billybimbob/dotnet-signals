@@ -84,9 +84,9 @@ internal sealed class DefaultEffect : IEffect
 
         Lifecycle.Backup(ref _watching);
 
-        using var effects = _messenger.ApplyEffects();
-
         var watcher = _messenger.Watcher;
+        var effects = _messenger.StartEffects();
+
         _messenger.Watcher = this;
 
         try
@@ -105,6 +105,7 @@ internal sealed class DefaultEffect : IEffect
             }
 
             _messenger.Watcher = watcher;
+            effects.Finish();
         }
 
         return _next;

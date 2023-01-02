@@ -1,4 +1,4 @@
-using Signals.Infrastructure.Disposables;
+using Signals.Infrastructure.Subscription;
 
 namespace Signals.Infrastructure;
 
@@ -15,11 +15,11 @@ internal sealed class Messenger
 
     public void Notify() => Version++;
 
-    public BatchChange ApplyEffects()
+    public PendingEffects StartEffects()
     {
         _batchDepth++;
 
-        return new BatchChange(FlushEffects, _batchDepth > 1);
+        return new PendingEffects(FlushEffects, _batchDepth > 1);
     }
 
     private void FlushEffects()

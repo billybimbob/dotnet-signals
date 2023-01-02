@@ -16,7 +16,9 @@ internal sealed class Message
     }
 
     public Message(ISource source, ITarget target)
-        : this(new Link<ISource>(source), new Link<ITarget>(target))
+        : this(
+            new Link<ISource>(source),
+            new Link<ITarget>(target))
     {
         if (source is { Listener.SourceLink: var nextSource })
         {

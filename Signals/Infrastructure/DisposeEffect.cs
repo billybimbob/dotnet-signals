@@ -86,9 +86,9 @@ internal sealed class DisposingEffect : IEffect
         ApplyCleanup();
         Lifecycle.Backup(ref _watching);
 
-        using var effects = _messenger.ApplyEffects();
-
         var watcher = _messenger.Watcher;
+        var effects = _messenger.StartEffects();
+
         _messenger.Watcher = this;
 
         try
@@ -107,6 +107,7 @@ internal sealed class DisposingEffect : IEffect
             }
 
             _messenger.Watcher = watcher;
+            effects.Finish();
         }
 
         return _next;
@@ -121,9 +122,9 @@ internal sealed class DisposingEffect : IEffect
 
         _cleanup = null;
 
-        using var effects = _messenger.ApplyEffects();
-
         var watcher = _messenger.Watcher;
+        var effects = _messenger.StartEffects();
+
         _messenger.Watcher = null;
 
         try
@@ -139,6 +140,7 @@ internal sealed class DisposingEffect : IEffect
         finally
         {
             _messenger.Watcher = watcher;
+            effects.Finish();
         }
     }
 
@@ -166,6 +168,7 @@ internal sealed class DisposingEffect : IEffect
 
         _next = null;
 
+        // keep eye on, can throw here
         ApplyCleanup();
     }
 }

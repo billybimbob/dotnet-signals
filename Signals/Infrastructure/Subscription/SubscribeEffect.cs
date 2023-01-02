@@ -1,4 +1,4 @@
-namespace Signals.Infrastructure;
+namespace Signals.Infrastructure.Subscription;
 
 internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 {
@@ -91,9 +91,9 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 
         Lifecycle.Backup(ref _watching);
 
-        using var effects = _messenger.ApplyEffects();
-
         var watcher = _messenger.Watcher;
+        var effects = _messenger.StartEffects();
+
         _messenger.Watcher = this;
 
         try
@@ -112,6 +112,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
             }
 
             _messenger.Watcher = watcher;
+            effects.Finish();
         }
 
         return _next;
