@@ -180,12 +180,15 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
 
     void ISource.Track(Message message)
     {
-        if (_listener is not null && _listener.TargetLink == message.TargetLink)
+        if (message != _listener)
         {
             return;
         }
 
-        _listener = message;
+        if (message == _tracking)
+        {
+            return;
+        }
 
         var target = message.TargetLink;
 
@@ -197,11 +200,6 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         if (_tracking is null)
         {
             TrackWatcher(message);
-        }
-
-        if (message == _tracking)
-        {
-            return;
         }
 
         if (!target.IsFirst)

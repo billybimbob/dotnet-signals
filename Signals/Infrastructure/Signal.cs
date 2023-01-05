@@ -89,21 +89,19 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
 
     void ISource.Track(Message message)
     {
-        if (_listener is not null && _listener.TargetLink == message.TargetLink)
-        {
-            return;
-        }
-
-        _listener = message;
-
-        var target = message.TargetLink;
-
-        if (!target.Value.Status.HasFlag(Status.Tracking))
+        if (message != _listener)
         {
             return;
         }
 
         if (message == _tracking)
+        {
+            return;
+        }
+
+        var target = message.TargetLink;
+
+        if (!target.Value.Status.HasFlag(Status.Tracking))
         {
             return;
         }

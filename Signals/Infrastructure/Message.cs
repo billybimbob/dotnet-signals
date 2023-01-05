@@ -117,8 +117,10 @@ internal sealed class Message
 
     public void Reset()
     {
-        SourceLink.Value.Track(this);
         TargetLink.Value.Watching = this;
+        SourceLink.Value.Listener = this;
+        SourceLink.Value.Track(this);
+
         _version = 0;
     }
 
