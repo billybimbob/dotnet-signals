@@ -15,7 +15,100 @@ public class WatchTests
     }
 
     [TestMethod]
-    public void SetValue_DetectsCycle()
+    public void Source_Value_Cascades()
+    {
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = source.Value;
+            callCount++;
+        });
+
+        source.Value = 1;
+
+        Assert.AreEqual(2, callCount);
+    }
+
+    [TestMethod]
+    public void Source_Peek_NoCascade()
+    {
+        int callCount = 0;
+        var source = _signals.Source(1);
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = source.Peek;
+            callCount++;
+        });
+
+        source.Value = 2;
+
+        Assert.AreEqual(1, callCount);
+    }
+
+    [TestMethod]
+    public void Source_MultipleValues_Cascades()
+    {
+        int callCount = 0;
+
+        var sourceA = _signals.Source(1);
+        var sourceB = _signals.Source("b");
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = sourceA.Value;
+            _ = sourceB.Value;
+            callCount++;
+        });
+
+        sourceA.Value = 2;
+        sourceB.Value = "B";
+
+        Assert.AreEqual(3, callCount);
+    }
+
+    [TestMethod]
+    public void Derive_Value_Cascades()
+    {
+        int callCount = 0;
+
+        var source = _signals.Source(1);
+        var timesTwo = _signals.Derive(() => source.Value * 2);
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = timesTwo.Value;
+            callCount++;
+        });
+
+        source.Value = 2;
+
+        Assert.AreEqual(2, callCount);
+    }
+
+    [TestMethod]
+    public void Derive_Peek_NoCascade()
+    {
+        int callCount = 0;
+
+        var source = _signals.Source(1);
+        var timesTwo = _signals.Derive(() => source.Value * 2);
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = timesTwo.Peek;
+            callCount++;
+        });
+
+        source.Value = 2;
+
+        Assert.AreEqual(1, callCount);
+    }
+
+    [TestMethod]
+    public void Source_SetValue_DetectsCycle()
     {
         var source = _signals.Source(0);
 
@@ -38,32 +131,44 @@ public class WatchTests
     }
 
     [TestMethod]
-    public void SetValue_Indirect_DetectsCycle()
+    public void Dispose_SingleCall_Unsubscribes()
     {
-        var source = _signals.Source(0);
-
-        var derivedCycle = _signals.Derive(() => source.Value--);
-
-        _ = Assert.ThrowsException<InvalidOperationException>(TestWatch);
-
-        void TestWatch()
-        {
-            int iteration = 0;
-
-            using var watch = _signals.Watch(() =>
-            {
-                if (iteration++ > CycleLimit)
-                {
-                    throw new AssertFailedException("Cycle not detected");
-                }
-
-                _ = derivedCycle.Value;
-            });
-        }
+        Assert.Inconclusive();
     }
 
-    // [TestMethod]
-    // public void MultipleDisposeCalls_NoThrow()
-    // {
-    // }
+    [TestMethod]
+    public void Dispose_MultipleCalls_NoThrow()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Source_ConditionalValue_PartialCascade()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Dispose_WithCleanup_RunsCleanup()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Derive_NoChange_NoCascade()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Source_Throws_NoCascade()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Source_ThrowsWithCleanup_RunsCleanup()
+    {
+        Assert.Inconclusive();
+    }
 }

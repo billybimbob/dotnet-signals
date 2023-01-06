@@ -94,8 +94,9 @@ internal sealed class Messenger
             return null;
         }
 
-        if (source.Listener is not Message dependency
-            || dependency.TargetLink.Value != watcher)
+        var dependency = source.Listener;
+
+        if (dependency?.TargetLink.Value != watcher)
         {
             dependency = new Message(source, watcher);
         }

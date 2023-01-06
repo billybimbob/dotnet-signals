@@ -1,13 +1,12 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using Moq;
+
 namespace Signals.Tests;
 
 [TestClass]
 public class SourceTests
 {
-    // TODO: figure out how to count effect calls
-    // possible option: Moq
-
     private readonly SignalProvider _signals;
 
     public SourceTests()
@@ -61,8 +60,64 @@ public class SourceTests
         Assert.AreEqual(update, source.Peek);
     }
 
-    // [TestMethod]
-    // public void Subscribe_MultipleDisposeCalls_NoThrow()
-    // {
-    // }
+    [TestMethod]
+    public void Subscribe_SourceChanges_Updates()
+    {
+        int notifyCount = 0;
+
+        var source = _signals.Source(0);
+        var mock = new Mock<IObserver<int>>();
+
+        _ = mock
+            .Setup(o => o.OnNext(It.IsAny<int>()))
+            .Callback(() => notifyCount++);
+
+        using var unsubscribe = source.Subscribe(mock.Object);
+
+        source.Value = 1;
+
+        Assert.AreEqual(2, notifyCount);
+    }
+
+    [TestMethod]
+    public void Subscribe_DisposeCall_Unsubscribes()
+    {
+        int notifyCount = 0;
+
+        var source = _signals.Source(0);
+        var mock = new Mock<IObserver<int>>();
+
+        _ = mock
+            .Setup(o => o.OnNext(It.IsAny<int>()))
+            .Callback(() => notifyCount++);
+
+        var unsubscribe = source.Subscribe(mock.Object);
+
+        unsubscribe.Dispose();
+        source.Value = 1;
+
+        Assert.AreEqual(1, notifyCount);
+    }
+
+    [TestMethod]
+    public void Subscribe_MultipleDisposeCalls_NoThrow()
+    {
+        int notifyCount = 0;
+
+        var source = _signals.Source(0);
+        var mock = new Mock<IObserver<int>>();
+
+        _ = mock
+            .Setup(o => o.OnNext(It.IsAny<int>()))
+            .Callback(() => notifyCount++);
+
+        var unsubscribe = source.Subscribe(mock.Object);
+
+        unsubscribe.Dispose();
+        unsubscribe.Dispose();
+
+        source.Value = 1;
+
+        Assert.AreEqual(1, notifyCount);
+    }
 }
