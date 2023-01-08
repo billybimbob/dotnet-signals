@@ -11,8 +11,8 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
     private T _value;
     private int _version;
 
-    private Message? _listener;
-    private Message? _tracking;
+    private Link<Message>? _listener;
+    private Link<Message>? _tracking;
 
     internal Signal(Messenger messenger, T value)
     {
@@ -28,7 +28,11 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
         get
         {
             var dependency = _messenger.AddDependency(this);
-            dependency?.SyncVersion();
+
+            if (dependency is not null)
+            {
+                dependency.Version = _version;
+            }
 
             return _value;
         }
@@ -44,7 +48,6 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
                 return;
             }
 
-            var targets = _tracking?.Targets ?? Enumerable.Empty<ITarget>();
             var effects = _messenger.StartEffects();
 
             _value = value;
@@ -52,9 +55,12 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
 
             _messenger.Notify();
 
-            foreach (var target in targets)
+            for (
+                var link = _tracking;
+                link is not null;
+                link = link.Next)
             {
-                target.Notify();
+                link.Value.Target.Notify();
             }
 
             effects.Finish();
@@ -79,61 +85,61 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
 
     int ISource.Version => _version;
 
-    Message? ISource.Listener
+    Link<Message>? ISource.Listener
     {
         get => _listener;
         set => _listener = value;
     }
 
-    bool ISource.Refresh() => true;
+    bool ISource.Update()
+        => _tracking?.Value.Version != _version;
 
-    void ISource.Track(Message message)
+    void ISource.Track(Link<Message> link)
     {
-        if (message != _listener)
+        if (link != _listener)
         {
             return;
         }
 
-        if (message == _tracking)
+        if (link == _tracking)
         {
             return;
         }
 
-        var target = message.TargetLink;
+        var target = link.Value.Target;
 
-        if (!target.Value.Status.HasFlag(Status.Tracking))
+        if (!target.Status.HasFlag(Status.Tracking))
         {
             return;
         }
 
-        if (!target.IsFirst)
+        if (!link.IsFirst)
         {
             return;
         }
 
-        if (_tracking is { TargetLink: var oldTarget } && oldTarget != target)
+        if (_tracking is not null)
         {
-            oldTarget.Prepend(target.Pop());
+            var first = link.Pop();
+            _tracking.Prepend(first);
         }
 
-        _tracking = message;
+        _tracking = link;
     }
 
-    void ISource.Untrack(Message message)
+    void ISource.Untrack(Link<Message> link)
     {
         if (_tracking is null)
         {
             return;
         }
 
-        var target = message.TargetLink;
-
-        if (_tracking == message)
+        if (_tracking == link)
         {
-            _tracking = target.Next?.Value.Watching;
+            _tracking = link.Next;
         }
 
-        _ = target.Pop();
+        _ = link.Pop();
     }
 
     #endregion

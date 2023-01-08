@@ -2,127 +2,81 @@ namespace Signals.Infrastructure;
 
 internal sealed class Message
 {
-    private const int Unused = -1;
-
-    private Message? _rollback;
-    private int _version;
-
-    public Message(Link<ISource> source, Link<ITarget> target)
-    {
-        _rollback = source.Value.Listener;
-        _version = 0;
-        SourceLink = source;
-        TargetLink = target;
-    }
+    public const int Unused = -1;
 
     public Message(ISource source, ITarget target)
-        : this(
-            new Link<ISource>(source),
-            new Link<ITarget>(target))
     {
-        if (source is { Listener.SourceLink: var nextSource })
-        {
-            var currentSource = SourceLink.Pop();
-            _ = nextSource.SpliceBefore();
-
-            nextSource.Prepend(currentSource);
-        }
-
-        if (source is { Listener.TargetLink: var nextTarget }
-            && nextTarget.Value.Status.HasFlag(Status.Tracking))
-        {
-            var currentTarget = TargetLink.Pop();
-            _ = nextTarget.SpliceBefore();
-
-            nextTarget.Prepend(currentTarget);
-        }
+        Version = Unused;
+        Source = source;
+        Target = target;
+        Rollback = source.Listener;
     }
 
-    public Link<ISource> SourceLink { get; }
+    public ISource Source { get; }
 
-    public Link<ITarget> TargetLink { get; }
+    public ITarget Target { get; }
 
-    public bool IsUnused => _version == Unused;
+    public int Version { get; set; }
 
-    public IEnumerable<ITarget> Targets
-    {
-        get
-        {
-            for (
-                var target = TargetLink;
-                target is not null;
-                target = target.Next)
-            {
-                yield return target.Value;
-            }
-        }
-    }
+    public Link<Message>? Rollback { get; set; }
 
-    public IEnumerable<ISource> Sources
-    {
-        get
-        {
-            for (
-                var source = SourceLink;
-                source is not null;
-                source = source.Next)
-            {
-                yield return source.Value;
-            }
-        }
-    }
+    // public IEnumerable<ITarget> Targets
+    // {
+    //     get
+    //     {
+    //         for (
+    //             var target = TargetLink;
+    //             target is not null;
+    //             target = target.Next)
+    //         {
+    //             yield return target.Value;
+    //         }
+    //     }
+    // }
 
-    public bool Refresh()
-    {
-        var source = SourceLink.Value;
+    // public IEnumerable<ISource> Sources
+    // {
+    //     get
+    //     {
+    //         for (
+    //             var source = SourceLink;
+    //             source is not null;
+    //             source = source.Next)
+    //         {
+    //             yield return source.Value;
+    //         }
+    //     }
+    // }
 
-        if (_version != source.Listener?._version)
-        {
-            return true;
-        }
+    // public void Backup()
+    // {
+    //     if (SourceLink.Listener is Link<Message> rollback)
+    //     {
+    //         Rollback = rollback;
+    //     }
 
-        if (!source.Refresh())
-        {
-            return true;
-        }
+    //     SourceLink.Value.Listener = this;
+    //     Version = Unused;
+    // }
 
-        if (_version != source.Listener?._version)
-        {
-            return true;
-        }
+    // public void Restore()
+    // {
+    //     SourceLink.Value.Listener = Rollback;
+    //     Rollback = null;
+    // }
 
-        return false;
-    }
+    // public void Renew()
+    // {
+    //     var source = SourceLink.Value;
 
-    public void Backup()
-    {
-        if (SourceLink.Value.Listener is Message rollback)
-        {
-            _rollback = rollback;
-        }
+    //     source.Listener = this;
+    //     source.Track(this);
 
-        SourceLink.Value.Listener = this;
-        _version = Unused;
-    }
+    //     TargetLink.Value.Watching = this;
 
-    public void Restore()
-    {
-        SourceLink.Value.Listener = _rollback;
-
-        if (_rollback is not null)
-        {
-            _rollback = null;
-        }
-    }
-
-    public void Reset()
-    {
-        TargetLink.Value.Watching = this;
-        SourceLink.Value.Listener = this;
-        SourceLink.Value.Track(this);
-
-        _version = 0;
-    }
-
-    public void SyncVersion() => _version = SourceLink.Value.Version;
+    //     if (Version == Unused)
+    //     {
+    //         Version = 0;
+    //     }
+    // }
 }

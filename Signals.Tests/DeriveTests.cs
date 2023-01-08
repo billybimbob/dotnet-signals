@@ -217,13 +217,41 @@ public class DeriveTests
     [TestMethod]
     public void Value_ThrowsNoCall_NoThrow()
     {
-        Assert.Inconclusive();
+        var source = _signals.Source(0);
+
+        var derivedError = _signals.Derive(() =>
+        {
+            if (source.Value == 0)
+            {
+                throw new InvalidOperationException("Error");
+            }
+
+            return source.Value * 2;
+        });
+
+        Assert.AreEqual(0, source.Value);
     }
 
     [TestMethod]
     public void Value_Throws_ThrowsOnGet()
     {
-        Assert.Inconclusive();
+        var source = _signals.Source(0);
+
+        var derivedError = _signals.Derive(() =>
+        {
+            if (source.Value == 0)
+            {
+                throw new InvalidOperationException("Error");
+            }
+
+            return source.Value * 2;
+        });
+
+        Assert.AreEqual(0, source.Value);
+
+        _ = Assert.ThrowsException<InvalidOperationException>(GetError);
+
+        void GetError() => _ = derivedError.Value;
     }
 
     [TestMethod]

@@ -6,7 +6,7 @@ internal sealed class DefaultEffect : IEffect
     private readonly Action _callback;
 
     private Status _status;
-    private Message? _watching;
+    private Link<Message>? _watching;
     private IEffect? _next;
 
     public DefaultEffect(Messenger messenger, Action callback)
@@ -18,7 +18,7 @@ internal sealed class DefaultEffect : IEffect
 
     Status ITarget.Status => _status;
 
-    Message? ITarget.Watching
+    Link<Message>? ITarget.Watching
     {
         get => _watching;
         set
@@ -28,22 +28,15 @@ internal sealed class DefaultEffect : IEffect
                 return;
             }
 
-            if (value is { IsUnused: false })
+            if (value is { Value.Version: not Message.Unused })
             {
                 return;
             }
 
-            if (value is { TargetLink.IsFirst: true })
+            if (_watching is not null && value is not null)
             {
-                return;
-            }
-
-            if (_watching is { TargetLink: var oldTarget }
-                && value is { TargetLink: var target }
-                && oldTarget != target)
-            {
-                _ = oldTarget.SpliceBefore();
-                oldTarget.Prepend(target.Pop());
+                var last = value.Pop();
+                _watching.Append(last);
             }
 
             _watching = value;
@@ -64,7 +57,7 @@ internal sealed class DefaultEffect : IEffect
     {
         _status &= ~Status.Notified;
 
-        if (!Lifecycle.Refresh(_watching))
+        if (_watching is not null && !Lifecycle.Refresh(_watching))
         {
             return _next;
         }
@@ -82,7 +75,7 @@ internal sealed class DefaultEffect : IEffect
         _status |= Status.Running;
         _status &= ~Status.Disposed;
 
-        Lifecycle.Backup(ref _watching);
+        Lifecycle.Reset(ref _watching);
 
         var watcher = _messenger.Watcher;
         var effects = _messenger.StartEffects();
@@ -97,6 +90,7 @@ internal sealed class DefaultEffect : IEffect
         {
             Lifecycle.Prune(ref _watching);
 
+            _messenger.Watcher = watcher;
             _status &= ~Status.Running;
 
             if (_status.HasFlag(Status.Disposed))
@@ -104,7 +98,6 @@ internal sealed class DefaultEffect : IEffect
                 Dispose();
             }
 
-            _messenger.Watcher = watcher;
             effects.Finish();
         }
 
@@ -120,21 +113,15 @@ internal sealed class DefaultEffect : IEffect
             return;
         }
 
-        _next = null;
-
-        if (_watching is null)
+        for (
+            var watch = _watching;
+            watch is not null;
+            watch = watch.Next)
         {
-            return;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            if (source.Listener is Message listener)
-            {
-                source.Untrack(listener);
-            }
+            watch.Value.Source.Untrack(watch);
         }
 
         _watching = null;
+        _next = null;
     }
 }

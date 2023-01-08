@@ -10,7 +10,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
     private Exception? _exception;
 
     private Status _status;
-    private Message? _watching;
+    private Link<Message>? _watching;
     private IEffect? _next;
 
     public SubscribeEffect(Messenger messenger, ISignal<T> source)
@@ -25,7 +25,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
 
     Status ITarget.Status => _status;
 
-    Message? ITarget.Watching
+    Link<Message>? ITarget.Watching
     {
         get => _watching;
         set
@@ -35,23 +35,18 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
                 return;
             }
 
-            if (value is { IsUnused: false })
+            if (value is { Value.Version: not Message.Unused })
             {
                 return;
             }
 
-            if (value is { TargetLink.IsFirst: true })
+            if (_watching is not null && value is not null)
             {
-                return;
+                var last = value.Pop();
+                _watching.Append(last);
             }
 
-            if (_watching is { TargetLink: var oldTarget }
-                && value is { TargetLink: var target }
-                && oldTarget != target)
-            {
-                _ = oldTarget.SpliceBefore();
-                oldTarget.Prepend(target.Pop());
-            }
+            _watching = value;
 
             _watching = value;
         }
@@ -71,7 +66,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
     {
         _status &= ~Status.Notified;
 
-        if (!Lifecycle.Refresh(_watching))
+        if (_watching is not null && !Lifecycle.Refresh(_watching))
         {
             return _next;
         }
@@ -89,7 +84,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         _status |= Status.Running;
         _status &= ~Status.Disposed;
 
-        Lifecycle.Backup(ref _watching);
+        Lifecycle.Reset(ref _watching);
 
         var watcher = _messenger.Watcher;
         var effects = _messenger.StartEffects();
@@ -104,6 +99,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         {
             Lifecycle.Prune(ref _watching);
 
+            _messenger.Watcher = watcher;
             _status &= ~Status.Running;
 
             if (_status.HasFlag(Status.Disposed))
@@ -111,7 +107,6 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
                 Dispose();
             }
 
-            _messenger.Watcher = watcher;
             effects.Finish();
         }
 
@@ -206,21 +201,16 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
         }
 
         _observers.Clear();
-        _next = null;
 
-        if (_watching is null)
+        for (
+            var watch = _watching;
+            watch is not null;
+            watch = watch.Next)
         {
-            return;
-        }
-
-        foreach (var source in _watching.Sources)
-        {
-            if (source.Listener is Message listener)
-            {
-                source.Untrack(listener);
-            }
+            watch.Value.Source.Untrack(watch);
         }
 
         _watching = null;
+        _next = null;
     }
 }

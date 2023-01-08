@@ -96,13 +96,22 @@ internal sealed class Messenger
 
         var dependency = source.Listener;
 
-        if (dependency?.TargetLink.Value != watcher)
+        if (dependency?.Value.Target != watcher)
         {
-            dependency = new Message(source, watcher);
+            var message = new Message(source, watcher);
+            dependency = new Link<Message>(message);
         }
 
-        dependency.Reset();
+        source.Listener = dependency;
+        source.Track(dependency);
 
-        return dependency;
+        watcher.Watching = dependency;
+
+        if (Version == Message.Unused)
+        {
+            Version = 0;
+        }
+
+        return dependency.Value;
     }
 }

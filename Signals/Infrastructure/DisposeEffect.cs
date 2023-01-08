@@ -7,7 +7,7 @@ internal sealed class DisposingEffect : IEffect
     private Action? _cleanup;
 
     private Status _status;
-    private Message? _watching;
+    private Link<Message>? _watching;
     private IEffect? _next;
 
     public DisposingEffect(Messenger messenger, Func<Action> callback)
@@ -19,7 +19,7 @@ internal sealed class DisposingEffect : IEffect
 
     Status ITarget.Status => _status;
 
-    Message? ITarget.Watching
+    Link<Message>? ITarget.Watching
     {
         get => _watching;
         set
@@ -29,22 +29,17 @@ internal sealed class DisposingEffect : IEffect
                 return;
             }
 
-            if (value is { IsUnused: false })
+            if (value is { Value.Version: not Message.Unused })
             {
                 return;
             }
 
-            if (value is { TargetLink.IsFirst: true })
+            if (_watching is not null && value is not null)
             {
-                return;
-            }
+                _ = _watching.SpliceAfter();
+                var last = value.Pop();
 
-            if (_watching is { TargetLink: var oldTarget }
-                && value is { TargetLink: var target }
-                && oldTarget != target)
-            {
-                _ = oldTarget.SpliceBefore();
-                oldTarget.Prepend(target.Pop());
+                _watching.Append(last);
             }
 
             _watching = value;
@@ -65,7 +60,7 @@ internal sealed class DisposingEffect : IEffect
     {
         _status &= ~Status.Notified;
 
-        if (!Lifecycle.Refresh(_watching))
+        if (_watching is not null && !Lifecycle.Refresh(_watching))
         {
             return _next;
         }
@@ -84,7 +79,7 @@ internal sealed class DisposingEffect : IEffect
         _status &= ~Status.Disposed;
 
         ApplyCleanup();
-        Lifecycle.Backup(ref _watching);
+        Lifecycle.Reset(ref _watching);
 
         var watcher = _messenger.Watcher;
         var effects = _messenger.StartEffects();
@@ -99,6 +94,7 @@ internal sealed class DisposingEffect : IEffect
         {
             Lifecycle.Prune(ref _watching);
 
+            _messenger.Watcher = watcher;
             _status &= ~Status.Running;
 
             if (_status.HasFlag(Status.Disposed))
@@ -106,7 +102,6 @@ internal sealed class DisposingEffect : IEffect
                 Dispose();
             }
 
-            _messenger.Watcher = watcher;
             effects.Finish();
         }
 
@@ -153,19 +148,15 @@ internal sealed class DisposingEffect : IEffect
             return;
         }
 
-        if (_watching is not null)
+        for (
+            var watch = _watching;
+            watch is not null;
+            watch = watch.Next)
         {
-            foreach (var source in _watching.Sources)
-            {
-                if (source.Listener is Message listener)
-                {
-                    source.Untrack(listener);
-                }
-            }
-
-            _watching = null;
+            watch.Value.Source.Untrack(watch);
         }
 
+        _watching = null;
         _next = null;
 
         // keep eye on, can throw here

@@ -4,11 +4,11 @@ internal interface ISource
 {
     int Version { get; }
 
-    Message? Listener { get; set; }
+    Link<Message>? Listener { get; set; }
 
-    bool Refresh();
+    bool Update();
 
-    void Track(Message message);
+    void Track(Link<Message> link);
 
-    void Untrack(Message message);
+    void Untrack(Link<Message> link);
 }

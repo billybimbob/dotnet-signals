@@ -2,16 +2,19 @@ namespace Signals.Infrastructure;
 
 internal static class Lifecycle
 {
-    public static bool Refresh(Message? target)
+    public static bool Refresh(Link<Message>? target)
     {
         if (target is null)
         {
-            return true;
+            return false;
         }
 
-        foreach (var source in target.Sources)
+        for (
+            var link = target;
+            link is not null;
+            link = link.Next)
         {
-            if (source.Listener?.Refresh() is true)
+            if (link.Value.Source.Update())
             {
                 return true;
             }
@@ -20,66 +23,69 @@ internal static class Lifecycle
         return false;
     }
 
-    public static void Backup(ref Message? target)
+    public static void Reset(ref Link<Message>? target)
     {
         if (target is null)
         {
             return;
         }
 
-        Message? tail = null;
+        Link<Message>? last = null;
 
-        foreach (var source in target.Sources)
+        for (
+            var link = target;
+            link is not null;
+            link = link.Next)
         {
-            if (source.Listener is not Message listener)
+            var message = link.Value;
+
+            if (message.Source.Listener is Link<Message> rollback)
             {
-                continue;
+                message.Rollback = rollback;
             }
 
-            listener.Backup();
+            message.Source.Listener = link;
 
-            if (listener.SourceLink.IsLast)
+            if (link.IsLast)
             {
-                tail = listener;
+                last = link;
             }
         }
 
-        if (tail is not null)
+        if (last is not null)
         {
-            target = tail;
+            target = last;
         }
     }
 
-    public static void Prune(ref Message? target)
+    public static void Prune(ref Link<Message>? target)
     {
-        Message? head = null;
-        var source = target?.SourceLink;
+        Link<Message>? first = null;
+        var link = target;
 
         // use while loop since source is modified during iter
 
-        while (source is not null)
+        while (link is not null)
         {
-            if (source.Value.Listener is not Message listener)
-            {
-                throw new InvalidOperationException("Source is missing listener");
-            }
+            var message = link.Value;
+            var previous = link.Previous;
 
-            var previous = source.Previous;
-
-            if (listener.IsUnused)
+            if (message.Version == Message.Unused)
             {
-                source.Value.Untrack(listener);
-                _ = source.Pop();
+                message.Source.Untrack(link);
+                _ = link.Pop();
             }
             else
             {
-                head = listener;
+                first = link;
             }
 
-            listener.Restore();
-            source = previous;
+            message.Source.Listener = message.Rollback;
+            message.Rollback = null;
+
+            link = previous;
         }
 
-        target = head;
+        target = first;
     }
 }
