@@ -195,7 +195,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
     {
         _status |= Status.Disposed;
 
-        if (!_status.HasFlag(Status.Running))
+        if (_status.HasFlag(Status.Running))
         {
             return;
         }

@@ -95,11 +95,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         _lastMessage = _messenger.Version;
         _status |= Status.Running;
 
-        Lifecycle.Backup(ref _watching);
-
         Recompute();
-
-        Lifecycle.Prune(ref _watching);
 
         _status &= ~Status.Running;
     }
@@ -110,6 +106,8 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         {
             return;
         }
+
+        Lifecycle.Backup(ref _watching);
 
         var watcher = _messenger.Watcher;
         _messenger.Watcher = this;
@@ -133,6 +131,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
         }
         finally
         {
+            Lifecycle.Prune(ref _watching);
             _messenger.Watcher = watcher;
         }
     }

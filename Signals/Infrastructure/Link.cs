@@ -38,28 +38,28 @@ internal sealed class Link<T>
 
     public Link<T>? SpliceBefore()
     {
-        if (Previous is not Link<T> tail)
+        if (Previous is not Link<T> last)
         {
             return null;
         }
 
         Previous = null;
-        tail.Next = null;
+        last.Next = null;
 
-        return tail;
+        return last;
     }
 
     public Link<T>? SpliceAfter()
     {
-        if (Next is not Link<T> head)
+        if (Next is not Link<T> first)
         {
             return null;
         }
 
         Next = null;
-        head.Previous = null;
+        first.Previous = null;
 
-        return head;
+        return first;
     }
 
     public void Prepend(Single single)

@@ -133,13 +133,39 @@ public class WatchTests
     [TestMethod]
     public void Dispose_SingleCall_Unsubscribes()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var watch = _signals.Watch(() =>
+        {
+            _ = source.Value;
+            callCount++;
+        });
+
+        watch.Dispose();
+        source.Value = 1;
+
+        Assert.AreEqual(1, callCount);
     }
 
     [TestMethod]
     public void Dispose_MultipleCalls_NoThrow()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var watch = _signals.Watch(() =>
+        {
+            _ = source.Value;
+            callCount++;
+        });
+
+        watch.Dispose();
+        watch.Dispose();
+
+        source.Value = 1;
+
+        Assert.AreEqual(1, callCount);
     }
 
     [TestMethod]
@@ -151,13 +177,43 @@ public class WatchTests
     [TestMethod]
     public void Dispose_WithCleanup_RunsCleanup()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+
+        var watch = _signals.Watch(() =>
+        {
+            return () =>
+            {
+                callCount++;
+            };
+        });
+
+        watch.Dispose();
+
+        Assert.AreEqual(1, callCount);
     }
 
     [TestMethod]
     public void Derive_NoChange_NoCascade()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+
+        var source = _signals.Source(0);
+
+        var noChange = _signals.Derive(() =>
+        {
+            _ = source.Value;
+            return 0;
+        });
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = noChange.Value;
+            callCount++;
+        });
+
+        source.Value = 1;
+
+        Assert.AreEqual(1, callCount);
     }
 
     [TestMethod]

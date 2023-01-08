@@ -144,4 +144,91 @@ public class DeriveTests
 
         _ = Assert.ThrowsException<InvalidOperationException>(GetValue);
     }
+
+    [TestMethod]
+    public void Source_DependencyCycle_Throws()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Peek_DependencyCycle_Throws()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Value_NoCall_IsLazy()
+    {
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var timesTwo = _signals.Derive(() =>
+        {
+            callCount++;
+            return source.Value * 2;
+        });
+
+        Assert.AreEqual(0, callCount);
+    }
+
+    [TestMethod]
+    public void Value_Called_IsEvaluated()
+    {
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var timesTwo = _signals.Derive(() =>
+        {
+            callCount++;
+            return source.Value * 2;
+        });
+
+        _ = timesTwo.Value;
+
+        Assert.AreEqual(1, callCount);
+    }
+
+    [TestMethod]
+    public void Value_MultipleCalls_SingleEvaluation()
+    {
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var timesTwo = _signals.Derive(() =>
+        {
+            callCount++;
+            return source.Value * 2;
+        });
+
+        _ = timesTwo.Value;
+        _ = timesTwo.Value;
+        _ = timesTwo.Value;
+
+        Assert.AreEqual(1, callCount);
+    }
+
+    [TestMethod]
+    public void Value_ConditionalSource_PartialCascade()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Value_ThrowsNoCall_NoThrow()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Value_Throws_ThrowsOnGet()
+    {
+        Assert.Inconclusive();
+    }
+
+    [TestMethod]
+    public void Value_OnlyDeriveThrows_ThrowContained()
+    {
+        Assert.Inconclusive();
+    }
 }

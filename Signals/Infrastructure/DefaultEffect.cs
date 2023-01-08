@@ -115,7 +115,7 @@ internal sealed class DefaultEffect : IEffect
     {
         _status |= Status.Disposed;
 
-        if (!_status.HasFlag(Status.Running))
+        if (_status.HasFlag(Status.Running))
         {
             return;
         }
