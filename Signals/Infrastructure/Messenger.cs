@@ -94,24 +94,25 @@ internal sealed class Messenger
             return null;
         }
 
-        var dependency = source.Listener;
+        var listener = source.Listener;
+        var watching = watcher.Watching;
 
-        if (dependency?.Value.Target != watcher)
+        if (listener is not { Value: Message dependency }
+            || dependency.Target != watcher)
         {
-            var message = new Message(source, watcher);
-            dependency = new Link<Message>(message);
+            dependency = new Message(source, watcher);
+
+            listener = new Link<Message>(dependency);
+            watching = new Link<Message>(dependency);
         }
 
-        source.Listener = dependency;
-        source.Track(dependency);
+        source.Listener = listener;
+        source.Track(listener);
 
-        watcher.Watching = dependency;
+        watcher.Watching = watching;
 
-        if (Version == Message.Unused)
-        {
-            Version = 0;
-        }
+        dependency.Utilize();
 
-        return dependency.Value;
+        return dependency;
     }
 }

@@ -29,10 +29,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
         {
             var dependency = _messenger.AddDependency(this);
 
-            if (dependency is not null)
-            {
-                dependency.Version = _version;
-            }
+            dependency?.SyncVersion();
 
             return _value;
         }
@@ -56,11 +53,11 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
             _messenger.Notify();
 
             for (
-                var link = _tracking;
-                link is not null;
-                link = link.Next)
+                var track = _tracking;
+                track is not null;
+                track = track.Next)
             {
-                link.Value.Target.Notify();
+                track.Value.Target.Notify();
             }
 
             effects.Finish();
@@ -91,8 +88,7 @@ internal sealed class Signal<T> : ISignalSource<T>, ISource, ISubscriber<T>
         set => _listener = value;
     }
 
-    bool ISource.Update()
-        => _tracking?.Value.Version != _version;
+    bool ISource.Update() => true;
 
     void ISource.Track(Link<Message> link)
     {

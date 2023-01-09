@@ -35,7 +35,7 @@ internal sealed class SubscribeEffect<T> : IEffect where T : IEquatable<T>
                 return;
             }
 
-            if (value is { Value.Version: not Message.Unused })
+            if (value is { Value.IsUnused: false })
             {
                 return;
             }

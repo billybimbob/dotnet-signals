@@ -2,81 +2,50 @@ namespace Signals.Infrastructure;
 
 internal sealed class Message
 {
-    public const int Unused = -1;
+    private const int Unused = -1;
+
+    private int _version;
+    private Link<Message>? _rollback;
 
     public Message(ISource source, ITarget target)
     {
-        Version = Unused;
+        _version = Unused;
+        _rollback = source.Listener;
         Source = source;
         Target = target;
-        Rollback = source.Listener;
     }
 
     public ISource Source { get; }
 
     public ITarget Target { get; }
 
-    public int Version { get; set; }
+    public bool IsUnused => _version == Unused;
 
-    public Link<Message>? Rollback { get; set; }
+    public bool IsOutdated => _version != Source.Version;
 
-    // public IEnumerable<ITarget> Targets
-    // {
-    //     get
-    //     {
-    //         for (
-    //             var target = TargetLink;
-    //             target is not null;
-    //             target = target.Next)
-    //         {
-    //             yield return target.Value;
-    //         }
-    //     }
-    // }
+    public void SyncVersion() => _version = Source.Version;
 
-    // public IEnumerable<ISource> Sources
-    // {
-    //     get
-    //     {
-    //         for (
-    //             var source = SourceLink;
-    //             source is not null;
-    //             source = source.Next)
-    //         {
-    //             yield return source.Value;
-    //         }
-    //     }
-    // }
+    public void Utilize()
+    {
+        if (IsUnused)
+        {
+            _version = 0;
+        }
+    }
 
-    // public void Backup()
-    // {
-    //     if (SourceLink.Listener is Link<Message> rollback)
-    //     {
-    //         Rollback = rollback;
-    //     }
+    public void Backup()
+    {
+        if (Source.Listener is Link<Message> rollback)
+        {
+            _rollback = rollback;
+        }
 
-    //     SourceLink.Value.Listener = this;
-    //     Version = Unused;
-    // }
+        _version = Unused;
+    }
 
-    // public void Restore()
-    // {
-    //     SourceLink.Value.Listener = Rollback;
-    //     Rollback = null;
-    // }
-
-    // public void Renew()
-    // {
-    //     var source = SourceLink.Value;
-
-    //     source.Listener = this;
-    //     source.Track(this);
-
-    //     TargetLink.Value.Watching = this;
-
-    //     if (Version == Unused)
-    //     {
-    //         Version = 0;
-    //     }
-    // }
+    public void Restore()
+    {
+        Source.Listener = _rollback;
+        _rollback = null;
+    }
 }

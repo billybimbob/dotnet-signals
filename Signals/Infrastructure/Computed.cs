@@ -66,10 +66,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
 
             Refresh();
 
-            if (dependency is not null)
-            {
-                dependency.Version = _version;
-            }
+            dependency?.SyncVersion();
 
             if (_exception is not null)
             {
@@ -171,24 +168,15 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
     {
         _status &= ~Status.Notified;
 
-        if (_tracking is null)
-        {
-            return false;
-        }
-
         if (_status.HasFlag(Status.Running))
         {
             return false;
         }
-
-        if (_version != _tracking.Value.Version)
+        else
         {
+            Refresh();
             return true;
         }
-
-        Refresh();
-
-        return _version != _tracking.Value.Version;
     }
 
     void ISource.Track(Link<Message> link)
@@ -282,7 +270,7 @@ internal sealed class Computed<T> : ISignal<T>, ISource, ITarget, ISubscriber<T>
                 return;
             }
 
-            if (value is { Value.Version: not Message.Unused })
+            if (value is { Value.IsUnused: false })
             {
                 return;
             }

@@ -29,7 +29,7 @@ internal sealed class DisposingEffect : IEffect
                 return;
             }
 
-            if (value is { Value.Version: not Message.Unused })
+            if (value is { Value.IsUnused: false })
             {
                 return;
             }

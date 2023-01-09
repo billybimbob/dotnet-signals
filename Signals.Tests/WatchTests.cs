@@ -171,7 +171,23 @@ public class WatchTests
     [TestMethod]
     public void Source_ConditionalValue_PartialCascade()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+
+        var a = _signals.Source("a");
+        var b = _signals.Source("b");
+
+        var condition = _signals.Source(true);
+
+        using var watch = _signals.Watch(() =>
+        {
+            _ = condition.Value ? a.Value : b.Value;
+            callCount++;
+        });
+
+        a.Value = "aa";
+        b.Value = "bb";
+
+        Assert.AreEqual(2, callCount);
     }
 
     [TestMethod]

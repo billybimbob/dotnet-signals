@@ -211,7 +211,29 @@ public class DeriveTests
     [TestMethod]
     public void Value_ConditionalSource_PartialCascade()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+
+        var a = _signals.Source("a");
+        var b = _signals.Source("b");
+
+        var condition = _signals.Source(true);
+
+        var derived = _signals.Derive(() =>
+        {
+            callCount++;
+            return condition.Value ? a.Value : b.Value;
+        });
+
+        _ = derived.Value;
+
+        a.Value = "aa";
+        _ = derived.Value;
+
+        b.Value = "bb";
+        _ = derived.Value;
+
+        Assert.AreEqual("aa", derived.Value);
+        Assert.AreEqual(2, callCount);
     }
 
     [TestMethod]

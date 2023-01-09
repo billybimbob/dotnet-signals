@@ -9,12 +9,21 @@ internal static class Lifecycle
             return false;
         }
 
-        for (
-            var link = target;
-            link is not null;
-            link = link.Next)
+        for (var link = target; link is not null; link = link.Next)
         {
-            if (link.Value.Source.Update())
+            var message = link.Value;
+
+            if (message.IsOutdated)
+            {
+                return true;
+            }
+
+            if (!message.Source.Update())
+            {
+                return true;
+            }
+
+            if (message.IsOutdated)
             {
                 return true;
             }
@@ -39,11 +48,7 @@ internal static class Lifecycle
         {
             var message = link.Value;
 
-            if (message.Source.Listener is Link<Message> rollback)
-            {
-                message.Rollback = rollback;
-            }
-
+            message.Backup();
             message.Source.Listener = link;
 
             if (link.IsLast)
@@ -70,7 +75,7 @@ internal static class Lifecycle
             var message = link.Value;
             var previous = link.Previous;
 
-            if (message.Version == Message.Unused)
+            if (message.IsUnused)
             {
                 message.Source.Untrack(link);
                 _ = link.Pop();
@@ -80,8 +85,7 @@ internal static class Lifecycle
                 first = link;
             }
 
-            message.Source.Listener = message.Rollback;
-            message.Rollback = null;
+            message.Restore();
 
             link = previous;
         }
