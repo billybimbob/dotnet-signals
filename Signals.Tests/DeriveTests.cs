@@ -148,13 +148,37 @@ public class DeriveTests
     [TestMethod]
     public void Source_DependencyCycle_Throws()
     {
-        Assert.Inconclusive();
+        ISignal<int>? a = null;
+        ISignal<int>? b = null;
+        ISignal<int>? c = null;
+        ISignal<int>? d = null;
+
+        a = _signals.Derive(() => b?.Value ?? 0);
+        b = _signals.Derive(() => c?.Value ?? 0);
+        c = _signals.Derive(() => d?.Value ?? 0);
+        d = _signals.Derive(() => a?.Value ?? 0);
+
+        _ = Assert.ThrowsException<InvalidOperationException>(GetValue);
+
+        void GetValue() => _ = a.Value;
     }
 
     [TestMethod]
     public void Peek_DependencyCycle_Throws()
     {
-        Assert.Inconclusive();
+        ISignal<int>? a = null;
+        ISignal<int>? b = null;
+        ISignal<int>? c = null;
+        ISignal<int>? d = null;
+
+        a = _signals.Derive(() => b?.Value ?? 0);
+        b = _signals.Derive(() => c?.Value ?? 0);
+        c = _signals.Derive(() => d?.Value ?? 0);
+        d = _signals.Derive(() => a?.Value ?? 0);
+
+        _ = Assert.ThrowsException<InvalidOperationException>(GetValue);
+
+        void GetValue() => _ = a.Peek;
     }
 
     [TestMethod]
@@ -259,7 +283,7 @@ public class DeriveTests
     {
         var source = _signals.Source(0);
 
-        var derivedError = _signals.Derive(() =>
+        var error = _signals.Derive(() =>
         {
             if (source.Value == 0)
             {
@@ -273,12 +297,42 @@ public class DeriveTests
 
         _ = Assert.ThrowsException<InvalidOperationException>(GetError);
 
-        void GetError() => _ = derivedError.Value;
+        void GetError() => _ = error.Value;
     }
 
     [TestMethod]
     public void Value_OnlyDeriveThrows_ThrowContained()
     {
-        Assert.Inconclusive();
+        var source = _signals.Source(0);
+
+        var error = _signals.Derive(() =>
+        {
+            if (source.Value == 0)
+            {
+                throw new InvalidOperationException("Error");
+            }
+
+            return source.Value * 2;
+        });
+
+        var contained = _signals.Derive(() =>
+        {
+            try
+            {
+                return error.Value;
+            }
+            catch (InvalidOperationException)
+            {
+                return 2;
+            }
+        });
+
+        Assert.AreEqual(0, source.Value);
+
+        _ = Assert.ThrowsException<InvalidOperationException>(GetError);
+
+        Assert.AreEqual(2, contained.Value);
+
+        void GetError() => _ = error.Value;
     }
 }

@@ -233,14 +233,95 @@ public class WatchTests
     }
 
     [TestMethod]
-    public void Source_Throws_NoCascade()
+    public void Source_ThrowsInWatch_NoCascade()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        IDisposable? watch = null;
+
+        try
+        {
+            watch = _signals.Watch(() =>
+            {
+                callCount++;
+                _ = source.Value;
+                throw new InvalidOperationException("Failure");
+            });
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            source.Value = 1;
+            watch?.Dispose();
+        }
+
+        Assert.AreEqual(1, callCount);
     }
 
     [TestMethod]
-    public void Source_ThrowsWithCleanup_RunsCleanup()
+    public void Source_ThrowsWithCleanup_IgnoresCleanup()
     {
-        Assert.Inconclusive();
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        IDisposable? watch = null;
+
+        try
+        {
+            watch = _signals.Watch(() =>
+            {
+                if (source.Value == 0)
+                {
+                    throw new InvalidOperationException("Failure");
+                }
+
+                return () => callCount++;
+            });
+        }
+        catch (InvalidOperationException)
+        { }
+        finally
+        {
+            source.Value = 1;
+            watch?.Dispose();
+        }
+
+        Assert.AreEqual(0, callCount);
+    }
+
+    [TestMethod]
+    public void Source_ThrowInCleanup_Disposes()
+    {
+        int callCount = 0;
+        var source = _signals.Source(0);
+
+        var watch = _signals.Watch(() =>
+        {
+            _ = source.Value;
+            callCount++;
+
+            return () =>
+            {
+                throw new InvalidOperationException("Failure");
+            };
+        });
+
+        try
+        {
+            watch.Dispose();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            source.Value = 1;
+            watch.Dispose();
+        }
+
+        Assert.AreEqual(1, callCount);
     }
 }
